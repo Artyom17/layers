@@ -4,31 +4,75 @@
 
 typedef (WebGLRenderingContext or WebGL2RenderingContext) XRWebGLRenderingContext;
 
+dictionary XRLayerInit {
+  boolean visible = true;
+  boolean chromaticAberration = false;
+  boolean blendTextureSourceAlpha = false;
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXR
+] interface XRLayer {
+  readonly attribute boolean visible;
+  
+  setVisibility(boolean visible);
+};
+
+enum XRStereoMode {
+    "mono",
+    "stereoLeftRight",
+    "stereoTopBottom",
+    "stereoBottomTop",
+    "stereoRightLeft"
+};
+
 // https://immersive-web.github.io/webxr/#xrwebgllayer-interface
 [
     SecureContext,
     Exposed=Window,
     RuntimeEnabled=WebXR
-] interface XRLayerDataSource {
+] interface XRLayerImageSource {
+};
+
+/////////////////////////
+dictionary XRLayerTextureImageInit {
+  boolean antialias = true;
+  boolean alpha = true;
+  unsigned long textureWidth;
+  unsigned long textureHeight;
 };
 
 [
     SecureContext,
     Exposed=Window,
-    RuntimeEnabled=WebXR
-] interface XRLayerTextureDataSource {
+    RuntimeEnabled=WebXR,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerTextureImageInit imageInit),
+    RaisesException=Constructor
+] interface XRLayerTextureImage : XRLayerImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute unsigned long textureWidth;
   readonly attribute unsigned long textureHeight;
-  readonly attribute unsigned long textureDepth;
   readonly attribute WebGLTexture texture;
+};
+
+/////////////////////////
+dictionary XRLayerTextureArrayImageInit {
+  boolean antialias = true;
+  boolean alpha = true;
+  unsigned long arrayTextureWidth;
+  unsigned long arrayTextureHeight;
+  unsigned long arrayTextureDepth;
 };
 
 [
     SecureContext,
     Exposed=Window,
-    RuntimeEnabled=WebXR
-] interface XRLayerTextureArrayDataSource {
+    RuntimeEnabled=WebXR,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerTextureArrayImageInit imageInit),
+    RaisesException=Constructor
+] interface XRLayerTextureArrayImage : XRLayerImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute unsigned long arrayTextureWidth;
   readonly attribute unsigned long arrayTextureHeight;
@@ -36,57 +80,146 @@ typedef (WebGLRenderingContext or WebGL2RenderingContext) XRWebGLRenderingContex
   readonly attribute WebGLTexture arrayTexture;
 };
 
+/////////////////////////
+dictionary XRLayerFramebufferImageInit {
+  boolean antialias = true;
+  boolean depth = true;
+  boolean stencil = false;
+  boolean alpha = true;
+  boolean multiview = true;
+  unsigned long framebufferWidth;
+  unsigned long framebufferHeight;
+};
+
 [
     SecureContext,
     Exposed=Window,
-    RuntimeEnabled=WebXR
-] interface XRLayerFramebufferDataSource {
+    RuntimeEnabled=WebXR,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerFramebufferImageInit imageInit),
+    RaisesException=Constructor
+] interface XRLayerFramebufferImage : XRLayerImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute boolean antialias;
   readonly attribute boolean depth;
   readonly attribute boolean stencil;
   readonly attribute boolean alpha;
+  readonly attribute boolean multiview;
 
   readonly attribute unsigned long framebufferWidth;
   readonly attribute unsigned long framebufferHeight;
   readonly attribute WebGLFramebuffer framebuffer;
 };
 
-[
-    SecureContext,
-    Exposed=Window,
-    RuntimeEnabled=WebXR
-] interface XRLayerDOMDataSource {
-  readonly attribute string url;
+/////////////////////////
+dictionary XRLayerDOMImageInit {
+  DOMString     url;
+  unsigned long width  = 0;
+  unsigned long height = 0;
 };
 
 [
     SecureContext,
     Exposed=Window,
     RuntimeEnabled=WebXR,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRWebGLLayerInit layerInit),
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerDOMImageInit imageInit),
     RaisesException=Constructor
-] interface XRWebGLLayer : XRLayer {
-  [ImplementedAs=getXRWebGLRenderingContext] readonly attribute XRWebGLRenderingContext context;
-  readonly attribute XRLayerDataSource source;
+] interface XRLayerDOMSource : XRLayerImageSource {
+  readonly attribute DOMString     url;
+  readonly attribute unsigned long width;
+  readonly attribute unsigned long height;
+};
 
-  XRViewport? getViewport(XRView view);
-  void requestViewportScaling(double viewportScaleFactor);
+/////////////////////////
+dictionary XRLayerVideoSourceInit {
+  HTMLVideoElement video;
+};
 
-  static double getNativeFramebufferScaleFactor(XRSession session);
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXR,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerVideoSourceInit imageInit),
+    RaisesException=Constructor
+] interface XRLayerVideoSource : XRLayerImageSource {
+  HTMLVideoElement video;
+};
+
+/////////////////////////
+dictionary XRQuadLayerInit {
 };
 
 [
     SecureContext,
     Exposed=Window,
     RuntimeEnabled=WebXR,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRWebGLLayerInit layerInit),
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRQuadLayerInit layerInit),
     RaisesException=Constructor
 ] interface XRQuadLayer : XRLayer {
-  readonly attribute XRLayerDataSource source;
+
+  readonly attribute XRLayerImageSource imageSource;
+  readonly attribute XRStereoMode       stereoMode;
 
   XRViewport? getViewport(XRView view);
-  void requestViewportScaling(double viewportScaleFactor);
-
-  static double getNativeFramebufferScaleFactor(XRSession session);
 };
+
+
+/////////////////////////
+dictionary XRCylinderLayerInit {
+  DOMPointReadOnly center;
+  DOMPointReadOnly view;
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXR,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRCylinderLayerInit layerInit),
+    RaisesException=Constructor
+] interface XRCylinderLayer : XRLayer {
+
+  readonly attribute XRLayerImageSource imageSource;
+  readonly attribute XRStereoMode       stereoMode;
+
+  readonly attribute DOMPointReadOnly center;
+  readonly attribute DOMPointReadOnly view;
+
+  XRViewport? getViewport(XRView view);
+};
+
+/////////////////////////
+dictionary XREquirectLayerInit {
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXR,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XREquirectLayerInit layerInit),
+    RaisesException=Constructor
+] interface XREquirectLayer : XRLayer {
+
+  readonly attribute XRLayerImageSource imageSource;
+  readonly attribute XRStereoMode       stereoMode;
+
+  XRViewport? getViewport(XRView view);
+};
+
+/////////////////////////
+dictionary XRCubeLayerInit {
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXR,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRCubeLayerInit layerInit),
+    RaisesException=Constructor
+] interface XRCubeLayer : XRLayer {
+
+  readonly attribute XRLayerImageSource imageSource;
+  readonly attribute XRStereoMode       stereoMode;
+
+  XRViewport? getViewport(XRView view);
+};
+

@@ -2,7 +2,7 @@
 
 Current WebXR spec is written with layers in mind (see [XRLayer interface](https://immersive-web.github.io/webxr/#xrlayer-interface)), however, only a single layer ([baseLayer](https://immersive-web.github.io/webxr/#dom-xrrenderstate-baselayer)) is currently supported.
 
-Other XR APIs (such as soon-to-be-public-supposedly-open-api-for-XR, Oculus SDK, more? tbd) support so called “VR compositor layers”.
+Other XR APIs (such as soon-to-be-public-supposedly-open-api-for-XR, Oculus SDK, more? tbd) support so called 
 
 ### Summary
 
@@ -27,6 +27,44 @@ A very high-level description of the implementation could be this:
 ### Proposed types of layers
 Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect
  layers.
+
+### Stereo vs mono
+
+### Layer image source
+
+#### Anti-aliasing
+
+Unfortunately, even WebGL 2 is pretty lame in terms of supporting multisampling rendering into a texture. There is no way (TODO) to render into a texture with implicit multisampling (no analog of EXT_render_to_texture_multisampled GL extension). Using multisampled renderbuffers is possible, but it involves extra copying (blitting from the renderbuffer to a texture).
+To address this performance issue, I think to introduce an XRLayerFramebufferImage, that will create a framebuffer with multisampling support.
+
+### Modify XRWebGLLayer
+Having XRLayerImage concept introduced, shouldn't we modify XRWebGLLayer to use it instead of explicit reference to framebuffer or texture array (for the XRWebGLArrayLayer)?
+```
+dictionary XRWebGLLayerInit {
+  boolean antialias = true;
+  boolean depth = true;
+  boolean stencil = false;
+  boolean alpha = true;
+  boolean multiview = false;
+  double framebufferScaleFactor = 1.0;
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    RuntimeEnabled=WebXR,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRWebGLLayerInit layerInit),
+    RaisesException=Constructor
+] interface XRWebGLLayer : XRLayer {
+  [ImplementedAs=getXRWebGLRenderingContext] readonly attribute XRWebGLRenderingContext context;
+  readonly XRLayerImage image;
+
+  XRViewport? getViewport(XRView view);
+  void requestViewportScaling(double viewportScaleFactor);
+
+  static double getNativeFramebufferScaleFactor(XRSession session);
+};
+```
  
  *to be continued...*
 
