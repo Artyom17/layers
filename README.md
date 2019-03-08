@@ -29,6 +29,7 @@ Not all layers are going to be supported by all hardware/browsers. We would need
  layers.
 
 ### Stereo vs mono
+Each layer could be rendered either as stereo or mono. "Stereo" means that the image rendered is different for each eye, "mono" - each eye get the same image. If layer is "stereo", then the image source should contain images for both eyes. The exact layout depends on the parameter 'stereoMode' that can be "leftRight" or "topBottom". The different modes are useful for displaying stereo panoramas or 180/360 videos.
 
 ### Layer image source
 
@@ -38,7 +39,7 @@ Unfortunately, even WebGL 2 is pretty lame in terms of supporting multisampling 
 To address this performance issue, I think to introduce an XRLayerFramebufferImage, that will create a framebuffer with multisampling support.
 
 ### Modify XRWebGLLayer
-Having XRLayerImage concept introduced, shouldn't we modify XRWebGLLayer to use it instead of explicit reference to framebuffer or texture array (for the XRWebGLArrayLayer)?
+Having XRLayerImage concept introduced, shouldn't we modify XRWebGLLayer to use it instead of explicit reference to framebuffer or texture array (for the XRWebGLArrayLayer)? We could avoid introducing an extra XRWebGLArrayLayer type in this case.
 ```
 dictionary XRWebGLLayerInit {
   boolean antialias = true;
@@ -49,14 +50,20 @@ dictionary XRWebGLLayerInit {
   double framebufferScaleFactor = 1.0;
 };
 
+dictionary XRWebGLArrayLayerInit {
+  boolean alpha = true;
+  double arrayTextureScaleFactor; // Same as the framebufferScaleFactor
+};
+
 [
     SecureContext,
     Exposed=Window,
     RuntimeEnabled=WebXR,
     Constructor(XRSession session, XRWebGLRenderingContext context, optional XRWebGLLayerInit layerInit),
+    Constructor(XRSession session, WebGL2RenderingContext context,  optional XRWebGLArrayLayerInit layerInit),
     RaisesException=Constructor
 ] interface XRWebGLLayer : XRLayer {
-  [ImplementedAs=getXRWebGLRenderingContext] readonly attribute XRWebGLRenderingContext context;
+  readonly attribute XRWebGLRenderingContext context;
   readonly XRLayerImage image;
 
   XRViewport? getViewport(XRView view);
