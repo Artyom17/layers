@@ -60,8 +60,13 @@ Layers require image source that is used for rendering. In order to achieve maxi
 * `XRLayerTextureArrayImage` - the WebGLTexture, that represents texture array is exposed, so the content can be copied into layers of it. Layer 0 represents the left eye image, 1 - the right eye image.
 * `XRLayerFramebufferImage` - the opaque WebGLFramebuffer is exposed, see 'Anti-aliasing' below.
 
-### Stereo vs mono
-Each layer could be rendered either as stereo or mono. "Stereo" means that the image rendered is different for each eye, "mono" - each eye get the same image. If layer is "stereo", then the image source should contain images for both eyes. The exact layout depends on the parameter 'stereoMode' that can be "leftRight" or "topBottom". The different modes are useful for displaying stereo panoramas or 180/360 videos.
+#### Stereo vs mono
+Each layer could render the same image for both eyes ("mono") or different images for each eye ("stereo"). `XRLayerImageSource` contains a member of type `XRStereoLayout` that indicates the layout for stereo rendering. If the image source is used for mono rendering or for rendering only for one particular eye then `stereoLayout` should be set to `none`.
+For image sources which are used for stereo layers there are three options: 
+* `leftRight` - side-by-side stereo, left half represents the left eye image, the right half - the right eye image;
+* `topBottom` - the top half of the image is the image for the left eye, the bottom half is the right eye image;
+* `layers` - used with `XRLayerTextureArrayImage`, where layer 0 represents the left eye image, 1 - the right eye image.
+
 
 #### Anti-aliasing
 
@@ -95,7 +100,7 @@ enum XRStereoLayout {
   // mono
   "none",
   // left to right side-by-side stereo
-  "leftToRight", 
+  "leftRight", 
   // left eye image is at the top, right eye image at the bottom
   "topBottom", 
   // texture array layers, 0 - left eye, 1 - right eye
@@ -174,7 +179,6 @@ dictionary XRLayerFramebufferImageInit : XRLayerImageSourceInit {
 [
     SecureContext,
     Exposed=Window,
-    RuntimeEnabled=WebXR,
     Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerFramebufferImageInit imageInit)
 ] interface XRLayerFramebufferImage : XRLayerImageSource {
   readonly attribute XRWebGLRenderingContext context;
@@ -199,7 +203,6 @@ dictionary XRLayerDOMImageInit : XRLayerImageSourceInit {
 [
     SecureContext,
     Exposed=Window,
-    RuntimeEnabled=WebXR,
     Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerDOMImageInit imageInit)
 ] interface XRLayerDOMSource : XRLayerImageSource {
   readonly attribute DOMString     url;
