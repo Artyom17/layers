@@ -21,6 +21,32 @@ I would propose two types of compositor layers for the text - quad and cylinder.
 
 A very high-level description of the implementation could be this:
 * Replace the XRRenderState [baseLayer](https://immersive-web.github.io/webxr/#dom-xrrenderstate-baselayer) with the sequence of XRLayers;
+```webidl
+dictionary XRRenderStateInit {
+  double depthNear;
+  double depthFar;
+  sequence<XRLayer>? layers;
+};
+
+[SecureContext, Exposed=Window] interface XRRenderState {
+  readonly attribute double depthNear;
+  readonly attribute double depthFar;
+  readonly attribute sequence<XRLayer>? layers;
+};
+```
+Example of use:
+```javascript
+function onXRSessionStarted(xrSession) {
+  let glCanvas = document.createElement("canvas");
+  let gl = glCanvas.getContext("webgl", { xrCompatible: true });
+
+  loadWebGLResources();
+
+  xrSession.updateRenderState({ [ new XRWebGLLayer(xrSession, gl) ] });
+}
+```
+
+
 * Introduce different subtypes to [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) which will have all the necessary attributes for each layer;
 * Introduce a way to determine which layers are supported and what is the maximum amount of the layers supported;
 
@@ -28,54 +54,23 @@ A very high-level description of the implementation could be this:
 Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect
  layers.
 
+### Layer image source
+Layers require image source that is used for rendering. In order to achieve maximum performance and to avoid extra texture copies, the image sources might be implemented as direct compositor swapchains under-the-hood. The proposed image sources are as follows:
+* `XRLayerTextureImage` - the WebGLTexure is exposed, so the content can be copied into it.
+* `XRLayerTextureArrayImage` - the WebGLTexture, that represents texture array is exposed, so the content can be copied into layers of it. Layer 0 represents the left eye image, 1 - the right eye image.
+* `XRLayerFramebufferImage` - the opaque WebGLFramebuffer is exposed, see 'Anti-aliasing' below.
+
 ### Stereo vs mono
 Each layer could be rendered either as stereo or mono. "Stereo" means that the image rendered is different for each eye, "mono" - each eye get the same image. If layer is "stereo", then the image source should contain images for both eyes. The exact layout depends on the parameter 'stereoMode' that can be "leftRight" or "topBottom". The different modes are useful for displaying stereo panoramas or 180/360 videos.
 
-### Layer image source
-
 #### Anti-aliasing
 
-Unfortunately, even WebGL 2 is pretty lame in terms of supporting multisampling rendering into a texture. There is no way (TODO) to render into a texture with implicit multisampling (no analog of EXT_render_to_texture_multisampled GL extension). Using multisampled renderbuffers is possible, but it involves extra copying (blitting from the renderbuffer to a texture).
-To address this performance issue, I think to introduce an XRLayerFramebufferImage, that will create a framebuffer with multisampling support.
+Unfortunately, even WebGL 2 is pretty lame in terms of supporting multisampling rendering into a texture. There is no way to render directly into a texture with implicit multisampling (`WEBGL_texture_multisample` extension is proposed, but not even in draft yet). Using multisampled renderbuffers is possible, but it involves extra copying (blitting from the renderbuffer to a texture).
+To address this performance issue, I think to introduce an `XRLayerFramebufferSourceImage`, that will create an opaque framebuffer with multisampling support, similarly to what is used for `XRWebGLLayer`.
 
-### Modify XRWebGLLayer
-Having XRLayerImage concept introduced, shouldn't we modify XRWebGLLayer to use it instead of explicit reference to framebuffer or texture array (for the XRWebGLArrayLayer)? We could avoid introducing an extra XRWebGLArrayLayer type in this case.
-```
-dictionary XRWebGLLayerInit {
-  boolean antialias = true;
-  boolean depth = true;
-  boolean stencil = false;
-  boolean alpha = true;
-  boolean multiview = false;
-  double framebufferScaleFactor = 1.0;
-};
+## Proposed IDL
 
-dictionary XRWebGLArrayLayerInit {
-  boolean alpha = true;
-  double arrayTextureScaleFactor; // Same as the framebufferScaleFactor
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    RuntimeEnabled=WebXR,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRWebGLLayerInit layerInit),
-    Constructor(XRSession session, WebGL2RenderingContext context,  optional XRWebGLArrayLayerInit layerInit),
-    RaisesException=Constructor
-] interface XRWebGLLayer : XRLayer {
-  readonly attribute XRWebGLRenderingContext context;
-  readonly attribute XRLayerSourceImage imageSource;
-
-  XRViewport? getViewport(XRView view);
-  void requestViewportScaling(double viewportScaleFactor);
-
-  static double getNativeFramebufferScaleFactor(XRSession session);
-};
-```
-
-## IDL index
-
-```
+```webidl
 typedef (WebGLRenderingContext or WebGL2RenderingContext) XRWebGLRenderingContext;
 
 dictionary XRLayerInit {
@@ -340,7 +335,40 @@ dictionary XRCubeLayerInit {
 
 ```
  
- *to be continued...*
+### An extra mile: modify XRWebGLLayer?
+Having XRLayerSourceImage concept introduced, shouldn't we modify XRWebGLLayer to use it instead of explicit reference to framebuffer or texture array (for the XRWebGLArrayLayer)? We could avoid introducing an extra XRWebGLArrayLayer type in this case.
+```webidl
+dictionary XRWebGLLayerInit {
+  boolean antialias = true;
+  boolean depth = true;
+  boolean stencil = false;
+  boolean alpha = true;
+  boolean multiview = false;
+  double framebufferScaleFactor = 1.0;
+};
+
+dictionary XRWebGLArrayLayerInit {
+  boolean alpha = true;
+  double arrayTextureScaleFactor; // Same as the framebufferScaleFactor
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRWebGLLayerInit layerInit),
+    Constructor(XRSession session, WebGL2RenderingContext context,  optional XRWebGLArrayLayerInit layerInit)
+] interface XRWebGLLayer : XRLayer {
+  readonly attribute XRWebGLRenderingContext context;
+  readonly attribute XRLayerSourceImage imageSource;
+
+  XRViewport? getViewport(XRView view);
+  void requestViewportScaling(double viewportScaleFactor);
+
+  static double getNativeFramebufferScaleFactor(XRSession session);
+};
+```
+
+
 
 
 
