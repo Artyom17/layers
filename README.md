@@ -47,7 +47,8 @@ function onXRSessionStarted(xrSession) {
 ```
 
 * Introduce different subtypes to [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) which will have all the necessary attributes for each layer;
-* Introduce a way to determine which layers are supported and what is the maximum amount of the layers supported;
+* Introduce a way to determine which layers are supported and what is the maximum amount of the layers supported. 
+> **TODO** expose capabitilities of layers, in XRSession?
 
 ### Proposed types of layers
 Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect
@@ -108,16 +109,93 @@ The addition of `XREyeVisibility` attribute, from another hand, gives an ability
 ## Layers
 
 ### Quad Layer
-> **TODO** Document this layer
+The quad layer describe a posable planar rectangle in the virtual world for displaying two-dimensional content. The quad layer occupies a certain portion of the display's FOV and allows better match between the resolution of the image source and the footprint of that image in the final composition. This allows optimal sampling and improves clarity of the image, which is important for rendering text or UI elements.
+
+```webidl
+dictionary XRQuadLayerInit {
+  XRLayerImageSource imageSource;
+  XRLayerEyeVisibility eyeVisibility = "both";
+  XRSpace   space;
+  XRPose?   pose;
+  long      width;
+  long      height;
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRQuadLayerInit layerInit)
+] interface XRQuadLayer : XRLayer {
+
+  readonly attribute XRLayerImageSource imageSource;
+
+  readonly attribute XRLayerEyeVisibility eyeVisibility;
+  readonly attribute XRSpace   space;
+  readonly attribute XRPose?   pose;
+  readonly attribute long      width;
+  readonly attribute long      height;
+};
+```
+The constructor should initialize the `XRQuadLayer` instance accordingly to attributes set in layerInit.
+
+The attributes of the `XRQuadLayer` are as follows:
+* `imageSource` - the instance of `XRLayerImageSource` or any of the inherited types;
+* `eyeVisibility` - the `XREyeVisibility`, defines which eye(s) this layer is rendered for;
+* `space` - the `XRSpace` or inherited type, defines the space in which the `pose` of the quad layer is expressed.
+* `pose` - the `XRPose`,  defines position and orientation of the quad in the reference space of the `space`;
+* `width` and `height` - the dimensions of the quad.
+
+Only front face of the quad layer is visible; the back face is not visible and **must** not be rendered by the browser. A quad layer has no thickness; it is a 2D object positioned and oriented in 3D space.
+
+The position of the quad refers to the center of the quad within the given `XRSpace`. The orientation of the quad refers to the orientation of the normal vector form the front face.
+
+The dimensions of the quad refer to the quad's size in the xy-plane of the given `XRSpace`'s coordinate system. For example, the quad with the orientation {0,0,0,1}, position {0,0,0}, and dimensions {1,1} refers to 1 meter by 1 meter quad centered at {0,0,0} with its front face normal vector congruent to Z+ axis.
+
+> **TODO** Define proper methods for `XRQuadLayer`, if any
+
+
 
 ### Cylinder Layer
+```webidl
+dictionary XRCylinderLayerInit {
+  XRLayerImageSource imageSource;
+  XRLayerEyeVisibility eyeVisibility = "both";
+  XRSpace  space;
+  XRPose?  pose;
+  float    radius;
+  float    centralAngle;
+  float    aspectRatio;
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRCylinderLayerInit layerInit)
+] interface XRCylinderLayer : XRLayer {
+
+  readonly attribute XRLayerImageSource imageSource;
+
+  readonly attribute XRLayerEyeVisibility eyeVisibility;
+  readonly attribute XRSpace  space;
+  readonly attribute XRPose?  pose;
+  readonly attribute float    radius;
+  readonly attribute float    centralAngle;
+  readonly attribute float    aspectRatio;
+};
+```
 > **TODO** Document this layer
+
+> **TODO** Define proper methods for `XRCylinderLayer`
 
 ### Equirect Layer
 > **TODO** Document this layer
 
+> **TODO** Define proper methods for `XREquirectLayer`
+
 ### Cubemap Layer
 > **TODO** Document this layer
+
+> **TODO** Define proper methods for `XRCubeLayer`
 
 ## Proposed IDL
 
