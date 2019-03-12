@@ -46,7 +46,6 @@ function onXRSessionStarted(xrSession) {
 }
 ```
 
-
 * Introduce different subtypes to [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) which will have all the necessary attributes for each layer;
 * Introduce a way to determine which layers are supported and what is the maximum amount of the layers supported;
 
@@ -54,24 +53,71 @@ function onXRSessionStarted(xrSession) {
 Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect
  layers.
 
+### Changes to XRLayer / XRLayerInit
+There are certain properties / attributes of layers which are common across all types of the layers. Such common attributes should be declared in base XRLayer and XRLayerInit types:
+* `visible` - controls visibility of the layer; some layer could be mark as 'invisible'; see `setVisibility` below.
+* `chromaticAberration` - controls chromatic aberration correction on per-layer basis. This would be beneficial for the layers like Quads and Cylinders, especially with the text.
+* `blendTextureSourceAlpha` - enables the layer's texture alpha channel; when it is set to `true` then the layer composition uses the alpha channel for the blending of the layer's image against the destination. The image's color channels must be encoded with premultiplied alpha. When the image has no alpha channel then this flag is ignored. If this flag is not set then the image is treated as if each texel is opaque, regardless of the presence of an alpha channel.
+The blending opration between the source and destination is an addition. The formula for the blending of each color component is as follows: `destination_color = (source_color + (destination_color * (1 - source_alpha)))`.
+> **TODO** Verify with WebGL folks
+
+#### Added methods to XRLayer
+* setVisibility(boolean visible) - toggles visibility of the layer. Ability to toggle visibility on per-layer basis is more efficient than re-setting layers by the `xrsession.updateRenderState`.
+> **TODO** Revise, if we want to do this; if so, define behavior, otherwise, remove `visible` attribute.
+
 ### Layer image source
-Layers require image source that is used for rendering. In order to achieve maximum performance and to avoid extra texture copies, the image sources might be implemented as direct compositor swapchains under-the-hood. The proposed image sources are as follows:
-* `XRLayerTextureImage` - the WebGLTexure is exposed, so the content can be copied into it.
-* `XRLayerTextureArrayImage` - the WebGLTexture, that represents texture array is exposed, so the content can be copied into layers of it. Layer 0 represents the left eye image, 1 - the right eye image.
-* `XRLayerFramebufferImage` - the opaque WebGLFramebuffer is exposed, see 'Anti-aliasing' below.
+Layers require image source that is used for the rendering. In order to achieve maximum performance and to avoid extra texture copies, the image sources might be implemented as direct compositor swapchains under-the-hood. The proposed image sources are as follows:
+* `XRLayerImageSource` and `XRLayerImageSourceInit` - the base types;
+* `XRLayerTextureImage` - the WebGLTexure is exposed, so the content can be copied or rendered into it. This image source can be created using `XRLayerTextureImageInit` object.
+* `XRLayerTextureArrayImage` - the WebGLTexture, that represents texture array is exposed, so the content can be copied or rendered into layers of it. Layer 0 represents the left eye image, 1 - the right eye image. The `XRLayerTextureArrayImageInit` object is used for creation of this image source.
+* `XRLayerFramebufferImage` - the opaque WebGLFramebuffer is exposed, see 'Anti-aliasing' below. The `XRLayerFramebufferImageInit` is used for creation of this image source.
+> **TODO** Verify necessity of all of these image sources, or do we need more?
+
+> **TODO** Document all the image sources here
+
+> **TODO** Add all necessary methods to each image source.
+
+#### Anti-aliasing
+
+Unfortunately, even WebGL 2 has limited functionality in terms of supporting multisampling rendering into a texture. There is no way to render directly into a texture with implicit multisampling (there is no WebGL analog of the `GL_EXT_multisampled_render_to_texture` GL extension). Using multisampled renderbuffers is possible, but it involves extra copying (blitting from the renderbuffer to a texture).
+To address this performance issue, I think to introduce an `XRLayerFramebufferImage`, that will create an opaque framebuffer with multisampling support, similarly to what is used for `XRWebGLLayer`.
+> **TODO** Verify with WebGL folks
+
+To address all of these limitiations, I propose to add `XRLayerFramebufferImage` image source that uses an opaque framebuffer approach similar to one we use for `XRWebGLLayer`. It also may have the multiview flag.
+
+> **TODO** What are we going to do with multiview? Multiview has the same issue, `WEBGL_multiview` has no way to render into the texture array with anti-aliasing.
+
+
 
 #### Stereo vs mono
-Each layer could render the same image for both eyes ("mono") or different images for each eye ("stereo"). `XRLayerImageSource` contains a member of type `XRStereoLayout` that indicates the layout for stereo rendering. If the image source is used for mono rendering or for rendering only for one particular eye then `stereoLayout` should be set to `none`.
+Each layer could render the same image for both eyes ("mono") or different images for each eye ("stereo"). This could be achived by two ways: the image source may contain images for both - left and right eyes (with side-by-side or top-to-bottom layouts; the `XRLayerTextureArrayImage` uses layers for different eyes images), and / or each layer may have an attribute for eye vibibility - both, left only or right only.
+To implement the first approach, the `XRLayerImageSource` contains a member of type `XRStereoLayout` that indicates the layout for stereo rendering. If the image source is used for mono rendering or for rendering only for one particular eye then `stereoLayout` should be set to `none`.
 For image sources which are used for stereo layers there are three options: 
 * `leftRight` - side-by-side stereo, left half represents the left eye image, the right half - the right eye image;
 * `topBottom` - the top half of the image is the image for the left eye, the bottom half is the right eye image;
 * `layers` - used with `XRLayerTextureArrayImage`, where layer 0 represents the left eye image, 1 - the right eye image.
 
+To implement the second approach I propose to add `XREyeVisibility` enumeration and the attribute of this type to `XRQuadLayer`, `XRCylinderLayer`, `XREquirectLayer` and `XRCubeLayer`. The possible values are `both`, `left` and `right`. Thus, to get a stereo quad layer there will be necessary to create two layers, or for the left eye and another one for the right eye, with using two different image sources for each eye.
+> **TODO** Do we need this for eye buffers layers, such as `WebGLLayer`?
 
-#### Anti-aliasing
+#### A reason to have both - XRStereoLayout and XREyeVisibility
+Both approaches provide 1:1 ratio between the layers and image sources, i.e. there is only one image source per layer, regardless whether it is the "stereo" or "mono" layer. This is important to keep things simple.
+Why to have both? XRStereoLayout is much easier to use, especially for rendering stereo equirect panoramas / videos where the source photo or video is usually a single texture.
+The addition of `XREyeVisibility` attribute, from another hand, gives an ability to provide different image sources for each eye. This could be useful for rendering stereo cube maps or stereo quad layers.
 
-Unfortunately, even WebGL 2 is pretty lame in terms of supporting multisampling rendering into a texture. There is no way to render directly into a texture with implicit multisampling (`WEBGL_texture_multisample` extension is proposed, but not even in draft yet). Using multisampled renderbuffers is possible, but it involves extra copying (blitting from the renderbuffer to a texture).
-To address this performance issue, I think to introduce an `XRLayerFramebufferSourceImage`, that will create an opaque framebuffer with multisampling support, similarly to what is used for `XRWebGLLayer`.
+## Layers
+
+### Quad Layer
+> **TODO** Document this layer
+
+### Cylinder Layer
+> **TODO** Document this layer
+
+### Equirect Layer
+> **TODO** Document this layer
+
+### Cubemap Layer
+> **TODO** Document this layer
 
 ## Proposed IDL
 
