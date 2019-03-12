@@ -103,6 +103,23 @@ For image sources which are used for stereo layers there are three options:
 To implement the second approach I propose to add `XREyeVisibility` enumeration and the attribute of this type to `XRQuadLayer`, `XRCylinderLayer`, `XREquirectLayer` and `XRCubeLayer`. The possible values are `both`, `left` and `right`. Thus, to get a stereo quad layer there will be necessary to create two layers, or for the left eye and another one for the right eye, with using two different image sources for each eye.
 > **TODO** Do we need this for eye buffers layers, such as `WebGLLayer`?
 
+***Alternative solution.*** Alternatively, we can follow the same path as other-soon-to-be-public-XR-API:
+* Do not use `XRStereoLayout` in the image source;
+* Introduce the type `XRLayerSubImage` that will refer to the image source, plus texture rectangle or layer index;
+* Instead of referencing `XRLayerImageSource` in `XRQuadLayer`, `XRCylinderLayer`, `XREquirectLayer` the `XRLayerSubImage` must be used;
+* For stereo layers it is necessary to insert two layers with `eyeVisibility` attribute set to `right` and `left` respectively. The `XRLayerSubImage` members of the layers may use the same `XRLayerImageSource` with different texture rectangle or layer index, or may use different image sources.
+```webidl
+[
+    SecureContext,
+    Exposed=Window
+] interface XRLayerSubImage {
+  readonly attribute XRLayerImageSource imageSource;
+  readonly attribute sequence<float> imageRect;
+  readonly attribute long imageArrayIndex;
+};
+```
+> **TODO** Decide which way to go: both - `XRStereoLayout` and `XREyeVisibility` or `XREyeVisibility` and `XRLayerSubImage`.
+
 #### A reason to have both - XRStereoLayout and XREyeVisibility
 Both approaches provide 1:1 ratio between the layers and image sources, i.e. there is only one image source per layer, regardless whether it is the "stereo" or "mono" layer. This is important to keep things simple.
 Why to have both? XRStereoLayout is much easier to use, especially for rendering stereo equirect panoramas / videos where the source photo or video is usually a single texture.
@@ -144,7 +161,7 @@ The attributes of the `XRQuadLayer` are as follows:
 * `imageSource` - the instance of `XRLayerImageSource` or any of the inherited types;
 * `eyeVisibility` - the `XREyeVisibility`, defines which eye(s) this layer is rendered for;
 * `space` - the `XRSpace` or inherited type, defines the space in which the `pose` of the quad layer is expressed.
-* `pose` - the `XRPose`,  defines position and orientation of the quad in the reference space of the `space`;
+* `pose` - the `XRPose`, defines position and orientation of the quad in the reference space of the `space`;
 * `width` and `height` - the dimensions of the quad.
 
 Only front face of the quad layer is visible; the back face is not visible and **must** not be rendered by the browser. A quad layer has no thickness; it is a 2D object positioned and oriented in 3D space.
@@ -158,6 +175,7 @@ The dimensions of the quad refer to the quad's size in the xy-plane of the given
 
 
 ### Cylinder Layer
+The cylinder layer is similar to quad layer: it is an object in the world with image mapped onto the inside of a cylinder section. It can be imagined the same way a curved TV set display looks to a viewer. Only the internal surface of the layer **must** be rendered; the exterior of the cylinder is not visible and **msut not** be rendered by the browser.
 ```webidl
 dictionary XRCylinderLayerInit {
   XRLayerImageSource imageSource;
@@ -185,19 +203,79 @@ dictionary XRCylinderLayerInit {
   readonly attribute float    aspectRatio;
 };
 ```
-> **TODO** Document this layer
+See `XRQuadLayer` for common attributes' description.
 
-> **TODO** Define proper methods for `XRCylinderLayer`
+The cylinder-specific attributes are as follows:
+* `pose` - the `XRPose`, defines position and orientation of the center point of the view of the cylinder in the reference space of the `space`;
+* `radius` - the radius of the cylinder.
+* `centralAngle` - is the angle of the visible section of the cylinder, in radians, from 0 (inclusive) to 2 x PI (exclusive). It grows symmetrically around the 0 radian angle.
+* `aspectRatio` - is the aspect ratio of the visible cylinder section, width / height. The height of the cylinder height is calculated as follows: `height = radius * centralAngle) / aspectRatio`.
+
+
+> **TODO** Define proper methods for `XRCylinderLayer`, if any
 
 ### Equirect Layer
+```webidl
+dictionary XREquirectLayerInit {
+  XRLayerImageSource imageSource;
+  XRLayerEyeVisibility eyeVisibility = "both";
+  XRSpace  space;
+  XRPose?  pose;
+  DOMPoint offset; // x,y,z
+  DOMPoint scale2d;// x,y
+  DOMPoint bias2d; // x,y
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XREquirectLayerInit layerInit)
+] interface XREquirectLayer : XRLayer {
+
+  readonly attribute XRLayerImageSource imageSource;
+
+  readonly attribute XRLayerEyeVisibility eyeVisibility;
+  readonly attribute XRSpace          space;
+  readonly attribute XRPose?          pose;
+  readonly attribute DOMPointReadOnly offset; //3f
+  readonly attribute DOMPointReadOnly scale2d;//2f
+  readonly attribute DOMPointReadOnly bias2d; //2f
+};
+```
 > **TODO** Document this layer
 
-> **TODO** Define proper methods for `XREquirectLayer`
+> **TODO** Define proper methods for `XREquirectLayer`, if any
 
 ### Cubemap Layer
+```webidl
+dictionary XRCubeLayerInit {
+  XRLayerImageSource imageSource;
+  XRLayerEyeVisibility eyeVisibility = "both";
+  XRSpace  space;
+  DOMPoint orientation; 
+  DOMPoint offset; 
+};
+
+[
+    SecureContext,
+    Exposed=Window,
+    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRCubeLayerInit layerInit)
+] interface XRCubeLayer : XRLayer {
+
+  readonly attribute XRLayerImageSource imageSource;
+
+  readonly attribute XRLayerEyeVisibility eyeVisibility;
+  readonly attribute XRSpace  space;
+
+  readonly attribute DOMPointReadOnly orientation; 
+  readonly attribute DOMPointReadOnly offset; 
+
+  XRViewport? getViewport(XRView view);
+};
+```
 > **TODO** Document this layer
 
-> **TODO** Define proper methods for `XRCubeLayer`
+> **TODO** Define proper methods for `XRCubeLayer`, if any
 
 ## Proposed IDL
 
@@ -243,7 +321,6 @@ dictionary XRLayerImageSourceInit {
   XRStereoLayout  stereoLayout = "none",
 }
 
-// https://immersive-web.github.io/webxr/#xrwebgllayer-interface
 [
     SecureContext,
     Exposed=Window
