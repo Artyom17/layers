@@ -78,6 +78,8 @@ Layers require image source that is used for the rendering. In order to achieve 
 
 > **TODO** Add all necessary methods to each image source.
 
+> **TODO** Add `XRLayerDOMImage`
+
 #### Anti-aliasing
 
 Unfortunately, even WebGL 2 has limited functionality in terms of supporting multisampling rendering into a texture. There is no way to render directly into a texture with implicit multisampling (there is no WebGL analog of the `GL_EXT_multisampled_render_to_texture` GL extension). Using multisampled renderbuffers is possible, but it involves extra copying (blitting from the renderbuffer to a texture).
