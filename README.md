@@ -211,6 +211,8 @@ The cylinder-specific attributes are as follows:
 * `centralAngle` - is the angle of the visible section of the cylinder, in radians, from 0 (inclusive) to 2 x PI (exclusive). It grows symmetrically around the 0 radian angle.
 * `aspectRatio` - is the aspect ratio of the visible cylinder section, width / height. The height of the cylinder height is calculated as follows: `height = radius * centralAngle) / aspectRatio`.
 
+![](cylinder_layer_params.png)
+> **TODO** Update the drawing
 
 > **TODO** Define proper methods for `XRCylinderLayer`, if any
 
