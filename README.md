@@ -58,6 +58,11 @@ function onXRSessionStarted(xrSession) {
 * Introduce a way to determine which layers are supported and what is the maximum amount of the layers supported. 
 > **TODO** expose capabitilities of layers, in XRSession?
 
+* Layers are drawn in the same order as they are specified in via `XRSession/updateRenderState`, with the
+0th layer drawn first. Layers are drawn with a "painter’s algorithm," with each successive layer
+potentially overwriting the destination layers whether or not the new layers are virtually closer to the
+viewer.
+
 ### Proposed types of layers
 Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect
  layers.
