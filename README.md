@@ -64,8 +64,7 @@ potentially overwriting the destination layers whether or not the new layers are
 viewer.
 
 ### Proposed types of layers
-Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect
- layers.
+Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect layers.
 
 ### Changes to XRLayer / XRLayerInit
 ```webidl
@@ -110,7 +109,7 @@ Layers require image source that is used for the rendering. In order to achieve 
 
 > **TODO** Add all necessary methods to each image source.
 
-> **TODO** Add `XRLayerDOMImage` and video
+> **TODO** Add `XRLayerDOMImage` and `XRLayerVideoImage`
 
 #### Anti-aliasing
 
@@ -190,6 +189,8 @@ The position of the quad refers to the center of the quad within the given `XRSp
 
 The dimensions of the quad refer to the quad's size in the xy-plane of the given `XRSpace`'s coordinate system. For example, the quad with the orientation {0,0,0,1}, position {0,0,0}, and dimensions {1,1} refers to 1 meter by 1 meter quad centered at {0,0,0} with its front face normal vector congruent to Z+ axis.
 
+> **TODO** Hittestable / interactive layers with using `XRLayerDOMImage`?
+
 > **TODO** Define proper methods for `XRQuadLayer`, if any
 
 
@@ -237,6 +238,9 @@ The cylinder-specific attributes are as follows:
 > **TODO** Update the drawing
 
 > **TODO** Define proper methods for `XRCylinderLayer`, if any
+
+> **TODO** Hittestable / interactive layers with using `XRLayerDOMImage`?
+
 
 ### Equirect Layer
 ```webidl
