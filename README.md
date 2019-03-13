@@ -101,7 +101,7 @@ The blending opration between the source and destination is an addition. The for
 ### Layer image source
 Layers require image source that is used for the rendering. In order to achieve maximum performance and to avoid extra texture copies, the image sources might be implemented as direct compositor swapchains under-the-hood. The proposed image sources are as follows:
 * `XRLayerImageSource` and `XRLayerImageSourceInit` - the base types;
-* `XRLayerTextureImage` - the WebGLTexure is exposed, so the content can be copied or rendered into it. This image source can be created using `XRLayerTextureImageInit` object.
+* `XRLayerTextureImage` - the WebGLTexure is exposed, so the content can be copied or rendered into it. This image source can be created using `XRLayerTextureImageInit` object. For `XRCubeLayer` the `cube` flag should be set to `true` at the creation time of the image source.
 * `XRLayerTextureArrayImage` - the WebGLTexture, that represents texture array is exposed, so the content can be copied or rendered into layers of it. Layer 0 represents the left eye image, 1 - the right eye image. The `XRLayerTextureArrayImageInit` object is used for creation of this image source.
 * `XRLayerFramebufferImage` - the opaque WebGLFramebuffer is exposed, see 'Anti-aliasing' below. The `XRLayerFramebufferImageInit` is used for creation of this image source.
 > **TODO** Verify necessity of all of these image sources, or do we need more?
@@ -298,6 +298,7 @@ dictionary XRCubeLayerInit {
   XRViewport? getViewport(XRView view);
 };
 ```
+Only `XRLayerTextureImage` with `cube` attribute set to `true` is supported as image source for the `XRCubeLayer`.
 > **TODO** Document this layer
 
 > **TODO** Define proper methods for `XRCubeLayer`, if any
