@@ -340,7 +340,7 @@ dictionary XRLayerTextureImageInit {
   unsigned long textureWidth;
   unsigned long textureHeight;
   boolean alpha = true;
-  boolean cube = true;
+  boolean cube = false;
 };
 
 [
