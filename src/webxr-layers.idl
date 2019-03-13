@@ -77,7 +77,7 @@ dictionary XRLayerFramebufferImageInit {
   boolean depth = true;
   boolean stencil = false;
   boolean alpha = true;
-  boolean multiview = true;
+  boolean multiview = false;
   unsigned long framebufferWidth;
   unsigned long framebufferHeight;
 };
