@@ -45,13 +45,12 @@ function onXRSessionStarted(xrSession) {
   quadImage = new XRLayerTextureImage(800, 600);
   let quadPose = new XRRigidTransform({0, 0, -5}, {0, 0, 0, 1});
   let quadSpace = xrSession.requestReferenceSpace({"stationary", "floorLevel"});
-  let quadSubImage = new XRLayerSubImage(quadImage);
 
   loadWebGLResources();
 
   xrSession.updateRenderState({ [ 
     new XRWebGLLayer(xrSession, gl), 
-    new XRQuadLayer(xrSession, gl, {quadSubImage, "both", quadSpace, quadPose, 1.0, 1.0} ) ] });
+    new XRQuadLayer(xrSession, gl, {quadImage, "both", quadSpace, quadPose, 1.0, 1.0} ) ] });
 }
 ```
 
@@ -75,7 +74,7 @@ dictionary XRLayerInit {
     Exposed=Window,
     Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerInit imageInit)
 ] interface XRLayer {
-  readonly attribute chromaticAberration;
+  readonly attribute boolean chromaticAberration;
   readonly attribute boolean blendTextureSourceAlpha;
   
   void requestUpdate();
@@ -122,7 +121,7 @@ It also may have the multiview flag.
 
 
 #### Stereo vs mono
-The Quad, Cylinder, Equirect and Cube layers may be used for rendering either as stereo (when the image is different for each eye) or as mono (when both eyes use the same image). For simplicity reasons, I propose to use similar approach to the soon-to-be-published-XR-API, where the layer has `XRLayerEyeVisibility` attribute that can have values `both`, `left` and `right`. This attributes controls which of the viewer's eyes to display the layer to. For mono rendering the `both` should be used. This approach provides 1:1 ratio between the layers and image source, i.e. there is only one image source per layer, regardless whether it is the "stereo" or "mono" layer.
+The Quad, Cylinder, Equirect and Cube layers may be used for rendering either as stereo (when the image is different for each eye) or as mono (when both eyes use the same image). For simplicity reasons, I propose to use similar approach to the soon-to-be-published-XR-API, where the layer has `XRLayerEyeVisibility` attribute that can have values `both`, `left` and `right`. This attributes controls which of the viewer's eyes to display the layer to. For mono rendering the `both` should be used. This approach provides 1:1 ratio between the layers and image sources, i.e. there is only one image source per layer, regardless whether it is the "stereo" or "mono" layer.
 
 For rendering stereo content it is necessary to create two layers, one with `left` eye visibility attirbute and another one with the `right` one. Both layers may reference to the same `XRLayerImageSource`, but most likely they should use different `XRLayerSubImage` with different texture rectangle or layer index; the `XRLayerSubImage` type defines which part of the image source should be used for the rendering of the particular eye. It is also possible to use completely different `XRLayerImageSource` per eye: for example, the `XRCubeLayer` should use different image sources for left and right eye, in the case when stereo cube map rendering is wanted.
 
@@ -173,7 +172,8 @@ dictionary XRQuadLayerInit {
 The constructor should initialize the `XRQuadLayer` instance accordingly to attributes set in layerInit.
 
 The attributes of the `XRQuadLayer` are as follows:
-* `subImage` - the instance of `XRLayerImageSource` or `XRLayerSubImage` or any of the inherited types;
+* `image` - (for `XRQuadLayerInit` only), the instance of `XRLayerImageSource` or `XRLayerSubImage` or any of the inherited types;
+* `subImage` - the instance of `XRLayerSubImage` or any of the inherited types; if the `XRLayerImageSource` was provided to inside the `XRQuadLayerInit` object, then it will be converted to `XRLayerSubImage`;
 * `eyeVisibility` - the `XREyeVisibility`, defines which eye(s) this layer is rendered for;
 * `space` - the `XRSpace` or inherited type, defines the space in which the `pose` of the quad layer is expressed.
 * `pose` - the `XRRigidTransform`, defines position and orientation of the quad in the reference space of the `space`;
@@ -190,7 +190,7 @@ The dimensions of the quad refer to the quad's size in the xy-plane of the given
 
 
 ### Cylinder Layer
-The cylinder layer is similar to quad layer: it is an object in the world with image mapped onto the inside of a cylinder section. It can be imagined the same way a curved TV set display looks to a viewer. Only the internal surface of the layer **must** be rendered; the exterior of the cylinder is not visible and **msut not** be rendered by the browser.
+The cylinder layer is similar to quad layer: it is an object in the world with image mapped onto the inside of a cylinder section. It can be imagined the same way a curved TV set display looks to a viewer. Only the internal surface of the layer **must** be rendered; the exterior of the cylinder is not visible and **must not** be rendered by the browser.
 ```webidl
 dictionary XRCylinderLayerInit {
   (XRLayerSubImage or XRLayerImageSource) image;
