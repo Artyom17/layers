@@ -340,6 +340,7 @@ dictionary XRLayerTextureImageInit {
   unsigned long textureWidth;
   unsigned long textureHeight;
   boolean alpha = true;
+  boolean cube = true;
 };
 
 [
@@ -352,6 +353,7 @@ dictionary XRLayerTextureImageInit {
   readonly attribute unsigned long textureHeight;
   readonly attribute unsigned long textureInternalFormat;
   readonly attribute WebGLTexture texture;
+  readonly attribute boolean cube;
 };
 
 /////////////////////////
