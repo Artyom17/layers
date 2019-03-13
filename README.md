@@ -179,7 +179,7 @@ The constructor should initialize the `XRQuadLayer` instance accordingly to attr
 The attributes of the `XRQuadLayer` are as follows:
 * `image` - (for `XRQuadLayerInit` only), the instance of `XRLayerImageSource` or `XRLayerSubImage` or any of the inherited types;
 * `subImage` - the instance of `XRLayerSubImage` or any of the inherited types; if the `XRLayerImageSource` was provided to inside the `XRQuadLayerInit` object, then it will be converted to `XRLayerSubImage`;
-* `eyeVisibility` - the `XREyeVisibility`, defines which eye(s) this layer is rendered for;
+* `eyeVisibility` - the `XRLayerEyeVisibility`, defines which eye(s) this layer is rendered for;
 * `space` - the `XRSpace` or inherited type, defines the space in which the `pose` of the quad layer is expressed.
 * `pose` - the `XRRigidTransform`, defines position and orientation of the quad in the reference space of the `space`;
 * `width` and `height` - the dimensions of the quad.
