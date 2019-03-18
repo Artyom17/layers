@@ -6,7 +6,28 @@ Other XR APIs (such as OpenXR, Oculus PC & Mobile SDKs, Unreal & Unity game engi
 
 ### Summary
 
-Objects and textures rendered as compositor layers render at the frame rate of the compositor, the refresh rate of the HMD, instead of rendering at the application frame rate. Because of this, the compositor layers are less prone to judder and are raytraced through the lenses, as well as textures / videos are not double sampled and sampled directly by the compositor at full resolution. This improves the clarity of the textures or text displayed on them.
+#### Problems to solve
+* Performance and judder
+  
+  Objects and textures rendered as compositor layers render at the frame rate of the compositor, the refresh rate of the HMD, instead of rendering at the application frame rate. Because of this, the compositor layers are less prone to judder.
+
+  A powerful feature of layers is that each can be a different resolution. This allows an application to scale to lower performance systems by dropping resolution on the main eye-buffer render that shows the virtual world, but keeping essential information, such as text or a map, in a different layer at a higher resolution.
+
+* Legibility / visual fiedlity 
+  
+  Resolution for eye-buffers for 3D world rendering can be set to relatively low values especially on lower peformance systems. Rendering any high fidelity content, such as text, will be impossible in this case. As it was mentioned above, each layer may have its own resolution and it will be resampled only once by the compositor, in contrary to the traditional approach with rendering layers via WebGL where the layer's content got resampled at least twice: once when rendering into WebGL eye-buffer (and losing a lot of resolution due to limited eye-buffer resolution) and the second time by the compositor.
+
+* Power consumption / battery life
+
+  Super critical for mobile AR/VR headset. Due to reduced rendering pipeline, lack of double sampling, no need to update the layer's rendering each frame the power consumption is expected to be improved vs traditional way of rendering and compositing layers via WebGL.
+
+* Latency
+
+  Pose sampling for compositor layers may occur at the very end of the frame and then certain techniques could be used to update the layer's pose to match it with the most recent HMD pose. Such techniques include, but not limited to, Asynchronous Timewarp, Asyncshronous Spacewarp, Positional Timewarp, etc. This may significantly reduce the effective latency for the layers' rendering and as a result improve overall experience.
+
+#### Goals of the proposal
+*  Define 
+
 
 ### Example use cases
 
