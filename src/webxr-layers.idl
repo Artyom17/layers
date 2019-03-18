@@ -1,7 +1,7 @@
 typedef (WebGLRenderingContext or WebGL2RenderingContext) XRWebGLRenderingContext;
 
 dictionary XRLayerInit {
-  boolean chromaticAberration = false;
+  boolean chromaticAberrationCorrection = false;
   boolean blendTextureSourceAlpha = false;
 };
 
@@ -10,7 +10,7 @@ dictionary XRLayerInit {
     Exposed=Window,
     Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerInit imageInit)
 ] interface XRLayer {
-  readonly attribute boolean chromaticAberration;
+  readonly attribute boolean chromaticAberrationCorrection;
   readonly attribute boolean blendTextureSourceAlpha;
   
   void requestUpdate();

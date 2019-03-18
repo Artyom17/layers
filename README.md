@@ -69,7 +69,7 @@ Not all layers are going to be supported by all hardware/browsers. We would need
 ### Changes to XRLayer / XRLayerInit
 ```webidl
 dictionary XRLayerInit {
-  boolean chromaticAberration = false;
+  boolean chromaticAberrationCorrection = false;
   boolean blendTextureSourceAlpha = false;
 };
 
@@ -78,14 +78,14 @@ dictionary XRLayerInit {
     Exposed=Window,
     Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerInit imageInit)
 ] interface XRLayer {
-  readonly attribute boolean chromaticAberration;
+  readonly attribute boolean chromaticAberrationCorrection;
   readonly attribute boolean blendTextureSourceAlpha;
   
   void requestUpdate();
 };
 ```
 There are certain properties / attributes of layers which are common across all types of the layers. Such common attributes should be declared in base XRLayer and XRLayerInit types:
-* `chromaticAberration` - controls chromatic aberration correction on per-layer basis. This would be beneficial for the layers like Quads and Cylinders, especially with the text.
+* `chromaticAberrationCorrection` - controls chromatic aberration correction on per-layer basis. This would be beneficial for the layers like Quads and Cylinders, especially with the text.
 * `blendTextureSourceAlpha` - enables the layer's texture alpha channel; when it is set to `true` then the layer composition uses the alpha channel for the blending of the layer's image against the destination. The image's color channels must be encoded with premultiplied alpha. When the image has no alpha channel then this flag is ignored. If this flag is not set then the image is treated as if each texel is opaque, regardless of the presence of an alpha channel.
 The blending opration between the source and destination is an addition. The formula for the blending of each color component is as follows: `destination_color = (source_color + (destination_color * (1 - source_alpha)))`.
 > **TODO** Verify with WebGL folks
@@ -193,6 +193,7 @@ The dimensions of the quad refer to the quad's size in the xy-plane of the given
 
 > **TODO** Define proper methods for `XRQuadLayer`, if any
 
+> **TODO** Describe how positioning works for each XRSpace
 
 
 ### Cylinder Layer
@@ -313,7 +314,7 @@ Only `XRLayerTextureImage` with `cube` attribute set to `true` is supported as i
 typedef (WebGLRenderingContext or WebGL2RenderingContext) XRWebGLRenderingContext;
 
 dictionary XRLayerInit {
-  boolean chromaticAberration = false;
+  boolean chromaticAberrationCorrection = false;
   boolean blendTextureSourceAlpha = false;
 };
 
@@ -322,7 +323,7 @@ dictionary XRLayerInit {
     Exposed=Window,
     Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerInit imageInit)
 ] interface XRLayer {
-  readonly attribute boolean chromaticAberration;
+  readonly attribute boolean chromaticAberrationCorrection;
   readonly attribute boolean blendTextureSourceAlpha;
   
   void requestUpdate();
