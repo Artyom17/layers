@@ -2,7 +2,7 @@
 
 Current WebXR spec is written with layers in mind (see [XRLayer interface](https://immersive-web.github.io/webxr/#xrlayer-interface)), however, only a single layer ([baseLayer](https://immersive-web.github.io/webxr/#dom-xrrenderstate-baselayer)) is currently supported.
 
-Other XR APIs (such as OpenXR, Oculus PC & Mobile SDKs, more? tbd) support so called 'composition' or 'timewarp' layers.
+Other XR APIs (such as OpenXR, Oculus PC & Mobile SDKs, Unreal & Unity game engines, more? tbd) support so called 'composition' or 'timewarp' layers.
 
 ### Summary
 
