@@ -600,6 +600,12 @@ dictionary XRWebGLArrayLayerInit {
 };
 ```
 
+## References
+* [Khronos OpenXR API](https://www.khronos.org/openxr)
+* [Oculus Mobile SDK Reference](https://developer.oculus.com/reference/mobile/1.18/)
+* [Oculus PC SDK Reference](https://developer.oculus.com/documentation/pcsdk/latest/concepts/book-dg/)
+* [Unreal Engine compositor layers](https://developer.oculus.com/documentation/unreal/latest/concepts/unreal-overlay/)
+* [Unity Engine compositor layers](https://developer.oculus.com/documentation/unity/latest/concepts/unity-ovroverlay/)
 
 
 
