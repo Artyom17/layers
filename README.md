@@ -26,8 +26,18 @@ Other XR APIs (such as OpenXR, Oculus PC & Mobile SDKs, Unreal & Unity game engi
   Pose sampling for compositor layers may occur at the very end of the frame and then certain techniques could be used to update the layer's pose to match it with the most recent HMD pose. Such techniques include, but not limited to, Asynchronous Timewarp, Asyncshronous Spacewarp, Positional Timewarp, etc. This may significantly reduce the effective latency for the layers' rendering and as a result improve overall experience.
 
 #### Goals of the proposal
-*  Define 
+* Introduce basic layers into WebXR spec and the way how layers should be provided from user's code to Browser;
+* Define ways to get layers capabilities, such as maximum number of supported layers, supported types of layers, etc;
+* Define ways to provide image source to layers; such image sources should be able to wrap internal high-efficient zero-copying render targets (such as "compositor swapchains");
+* Specify each layer type (quad, cylinder, equirect, cubemap), provide details for properties / methods for each layer;
+* Make sure the layers part of WebXR spec is extensible for any future additions and minimizing need for breaking changes;
+* Provide initial IDL.
 
+#### Non-goals
+The idea of the proposal is to add pretty basic concept of the layers into WebXR spec and agree on general approach. Therefore, the following topics are probably non-goals for this proposal and they could be moved to a separate proposal once this one becomes a thing:
+* DOM layers details; 
+* Video layer details; 
+* Hittestable layers.
 
 ### Example use cases
 
