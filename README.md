@@ -30,7 +30,7 @@ Other XR APIs (such as OpenXR, Oculus PC & Mobile SDKs, Unreal & Unity game engi
 * Define ways to get layers capabilities, such as maximum number of supported layers, supported types of layers, etc;
 * Define ways to provide image source to layers; such image sources should be able to wrap internal high-efficient zero-copying render targets (such as "compositor swapchains");
 * Specify each layer type (quad, cylinder, equirect, cubemap), provide details for properties / methods for each layer;
-* Make sure the layers part of WebXR spec is extensible for any future additions and minimizing need for breaking changes;
+* Make sure the layers part of WebXR spec is extensible for any future additions and minimizing need for breaking changes in future;
 * Provide initial IDL.
 
 #### Non-goals
