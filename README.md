@@ -9,7 +9,7 @@ Other XR APIs (such as OpenXR, Oculus PC & Mobile SDKs, Unreal & Unity game engi
 #### Problems to solve
 * Performance and judder
   
-  Objects and textures rendered as compositor layers render at the frame rate of the compositor, the refresh rate of the HMD, instead of rendering at the application frame rate. Because of this, the compositor layers are less prone to judder.
+  Objects and textures rendered as composition layers render at the frame rate of the compositor, the refresh rate of the HMD, instead of rendering at the application frame rate. Because of this, the composition layers are less prone to judder.
 
   A powerful feature of layers is that each can be a different resolution. This allows an application to scale to lower performance systems by dropping resolution on the main eye-buffer render that shows the virtual world, but keeping essential information, such as text or a map, in a different layer at a higher resolution.
 
@@ -23,7 +23,7 @@ Other XR APIs (such as OpenXR, Oculus PC & Mobile SDKs, Unreal & Unity game engi
 
 * Latency
 
-  Pose sampling for compositor layers may occur at the very end of the frame and then certain techniques could be used to update the layer's pose to match it with the most recent HMD pose. Such techniques include, but not limited to, Asynchronous Timewarp, Asyncshronous Spacewarp, Positional Timewarp, etc. This may significantly reduce the effective latency for the layers' rendering and as a result improve overall experience.
+  Pose sampling for composition layers may occur at the very end of the frame and then certain techniques could be used to update the layer's pose to match it with the most recent HMD pose. Such techniques include, but not limited to, Asynchronous Timewarp, Asyncshronous Spacewarp, Positional Timewarp, etc. This may significantly reduce the effective latency for the layers' rendering and as a result improve overall experience.
 
 #### Goals of the proposal
 * Introduce basic layers into WebXR spec and the way how layers should be provided from user's code to Browser;
@@ -41,12 +41,12 @@ The idea of the proposal is to add pretty basic concept of the layers into WebXR
 
 ### Example use cases
 
-Compositor layers are useful for displaying information, text, video, or textures that are intended to be focal objects in your scene. Compositor layers can also be useful for displaying simple environments and backgrounds to your scene.
+Composition layers are useful for displaying information, text, video, or textures that are intended to be focal objects in your scene. Composition layers can also be useful for displaying simple environments and backgrounds to your scene.
 
 One of the very common use cases of WebXR is 180 and/or 360 photos or videos, both - equirect and cubemaps. Usual implementation involves a lot of CPU and GPU power and the result is usually pretty poor in terms of visual quality, latency and power consumption (the latter is especially critical for mobile / standalone devices, such as Oculus Go, Quest, Vive Focus, ML1, HoloLens, etc).
 
-Another example where compositor layers are going to shine is displaying text or high resolution textures in the virtual world. Since compositor layers allow to sample source texture at full resolution without downsampling to the resolution of the eye buffers (which is usually much lower than the physical resolution of the device's screen(s)) the readability of the text is going to be significantly improved.
-I would propose two types of compositor layers for the text - quad and cylinder. While cylinder layer is harder to implement than a simple Quad, it provides much better way to display readable text in VR space. But if the cylinder layer is not supported by the certain hardware or the browser then the Quad layer could be used.
+Another example where composition layers are going to shine is displaying text or high resolution textures in the virtual world. Since composition layers allow to sample source texture at full resolution without downsampling to the resolution of the eye buffers (which is usually much lower than the physical resolution of the device's screen(s)) the readability of the text is going to be significantly improved.
+I would propose two types of composition layers for the text - quad and cylinder. While cylinder layer is harder to implement than a simple Quad, it provides much better way to display readable text in VR space. But if the cylinder layer is not supported by the certain hardware or the browser then the Quad layer could be used.
 
 ### Implementation overview
 
