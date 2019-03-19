@@ -95,7 +95,7 @@ potentially overwriting the destination layers whether or not the new layers are
 viewer.
 
 ### Proposed types of layers
-Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect layers.
+Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect layers. For more details, go [here](#layers).
 
 ### Changes to XRLayer / XRLayerInit
 ```webidl
