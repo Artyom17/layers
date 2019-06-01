@@ -9,44 +9,37 @@ Other XR APIs (such as OpenXR, Oculus PC & Mobile SDKs, Unreal & Unity game engi
 #### Problems to solve
 * Performance and judder
   
-  Objects and textures rendered as composition layers render at the frame rate of the compositor, the refresh rate of the HMD, instead of rendering at the application frame rate. Because of this, the composition layers are less prone to judder.
-
-  A powerful feature of layers is that each can be a different resolution. This allows an application to scale to lower performance systems by dropping resolution on the main eye-buffer render that shows the virtual world, but keeping essential information, such as text or a map, in a different layer at a higher resolution.
-
-* Legibility / visual fiedlity 
+  Composition layers are presented at the frame rate of the compositor (i.e. native refresh rate of HMD) rather than at the application frame rate. Even when the application is not updating the layer's rendering at the native refresh rate of the compositor, the compositor still might be able to re-project the existing rendering to the proper pose. This means smoother rendering and less judder.
   
-  Resolution for eye-buffers for 3D world rendering can be set to relatively low values especially on lower peformance systems. Rendering any high fidelity content, such as text, will be impossible in this case. As it was mentioned above, each layer may have its own resolution and it will be resampled only once by the compositor, in contrary to the traditional approach with rendering layers via WebGL where the layer's content got resampled at least twice: once when rendering into WebGL eye-buffer (and losing a lot of resolution due to limited eye-buffer resolution) and the second time by the compositor.
+  A powerful feature of layers is that each of them may have different resolution. This allows the application to scale down the main eye buffer resolution on low performance systems, but keeping essential information, such as text or a map, in a different layer at a higher resolution.
+
+* Legibility / visual fidelity 
+  
+  The resolution for eye-buffers for 3D world rendering can be set to relatively low values especially on low performance systems. It would be impossible to render high fidelity content, such as text, in this case. As it was mentioned above, each layer may have its own resolution and it will be re-sampled only once by the compositor (in contrary to the traditional approach with rendering layers via WebGL where the layer's content got re-sampled at least twice: once when rendering into WebGL eye-buffer (and losing a lot of details due to limited eye-buffer resolution) and the second time by the compositor).
 
 * Power consumption / battery life
 
-  Super critical for mobile AR/VR headset. Due to reduced rendering pipeline, lack of double sampling, no need to update the layer's rendering each frame the power consumption is expected to be improved vs traditional way of rendering and compositing layers via WebGL.
+  Power consumption is super critical for mobile AR/VR headsets. Due to reduced rendering pipeline, lack of double sampling, no need to update the layer's rendering each frame the power consumption is expected to be improved versus traditional way of rendering and compositing layers via WebGL.
 
 * Latency
 
-  Pose sampling for composition layers may occur at the very end of the frame and then certain techniques could be used to update the layer's pose to match it with the most recent HMD pose. Such techniques include, but not limited to, Asynchronous Timewarp, Asyncshronous Spacewarp, Positional Timewarp, etc. This may significantly reduce the effective latency for the layers' rendering and as a result improve overall experience.
+  Pose sampling for composition layers may occur at the very end of the frame and then certain techniques could be used to update the layer's pose to match it with the most recent HMD pose. Such techniques include, but not limited to, Asynchronous Timewarp, Asynchronous Spacewarp, Positional Timewarp, etc. This may significantly reduce the effective latency for the layers' rendering and as a result improve overall experience.
 
 #### Goals of the proposal
-* Introduce basic layers into WebXR spec and the way how layers should be provided from user's code to Browser;
+The idea of the proposal is to add pretty basic concept of the layers into WebXR spec and agree on general approach. 
+* Introduce a concept of layers into WebXR spec and the way how layers should be provided from user's code to Browser;
 * Define ways to get layers capabilities, such as maximum number of supported layers, supported types of layers, etc;
 * Define ways to provide image source to layers; such image sources should be able to wrap internal high-efficient zero-copying render targets (such as "compositor swapchains");
-* Specify each layer type (quad, cylinder, equirect, cubemap), provide details for properties / methods for each layer;
 * Make sure the layers part of WebXR spec is extensible for any future additions and minimizing need for breaking changes in future;
-* Provide initial IDL.
 
-#### Non-goals
-The idea of the proposal is to add pretty basic concept of the layers into WebXR spec and agree on general approach. Therefore, the following topics are probably non-goals for this proposal and they could be moved to a separate proposal once this one becomes a thing:
-* DOM layers details; 
-* Video layer details; 
-* Hittestable layers.
+### Examples of use cases
 
-### Example use cases
-
-Composition layers are useful for displaying information, text, video, or textures that are intended to be focal objects in your scene. Composition layers can also be useful for displaying simple environments and backgrounds to your scene.
+Composition layers are useful for displaying information, text, video, or textures that are intended to be focal objects in your scene. Composition layers could also be useful for displaying simple environments and backgrounds to your scene.
 
 One of the very common use cases of WebXR is 180 and/or 360 photos or videos, both - equirect and cubemaps. Usual implementation involves a lot of CPU and GPU power and the result is usually pretty poor in terms of visual quality, latency and power consumption (the latter is especially critical for mobile / standalone devices, such as Oculus Go, Quest, Vive Focus, ML1, HoloLens, etc).
 
 Another example where composition layers are going to shine is displaying text or high resolution textures in the virtual world. Since composition layers allow to sample source texture at full resolution without downsampling to the resolution of the eye buffers (which is usually much lower than the physical resolution of the device's screen(s)) the readability of the text is going to be significantly improved.
-I would propose two types of composition layers for the text - quad and cylinder. While cylinder layer is harder to implement than a simple Quad, it provides much better way to display readable text in VR space. But if the cylinder layer is not supported by the certain hardware or the browser then the Quad layer could be used.
+
 
 ### Implementation overview
 
@@ -56,12 +49,18 @@ A very high-level description of the implementation could be this:
 dictionary XRRenderStateInit {
   double depthNear;
   double depthFar;
+  double inlineVerticalFieldOfView;
+  XRPresentationContext? outputContext;
+
   sequence<XRLayer>? layers;
 };
 
 [SecureContext, Exposed=Window] interface XRRenderState {
   readonly attribute double depthNear;
   readonly attribute double depthFar;
+  readonly attribute double? inlineVerticalFieldOfView;
+  readonly attribute XRPresentationContext? outputContext;
+
   readonly attribute FrozenArray<XRLayer>? layers;
 };
 ```
@@ -171,173 +170,6 @@ For rendering stereo content it is necessary to create two layers, one with `lef
   readonly attribute long imageArrayIndex;
 };
 ```
-
-## Layers
-
-### Quad Layer
-The quad layer describe a posable planar rectangle in the virtual world for displaying two-dimensional content. The quad layer occupies a certain portion of the display's FOV and allows better match between the resolution of the image source and the footprint of that image in the final composition. This allows optimal sampling and improves clarity of the image, which is important for rendering text or UI elements.
-
-```webidl
-dictionary XRQuadLayerInit {
-  (XRLayerSubImage or XRLayerImageSource) image;
-  XRLayerEyeVisibility eyeVisibility = "both";
-  XRSpace              space;
-  XRRigidTransform?    pose;
-  float                width;
-  float                height;
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRQuadLayerInit layerInit)
-] interface XRQuadLayer : XRLayer {
-
-  readonly attribute XRLayerSubImage      subImage;
-
-  readonly attribute XRLayerEyeVisibility eyeVisibility;
-  readonly attribute XRSpace              space;
-  readonly attribute XRRigidTransform?    pose;
-  readonly attribute float                width;
-  readonly attribute float                height;
-
-  XRViewport? getViewport(XRView view);
-};
-```
-The constructor should initialize the `XRQuadLayer` instance accordingly to attributes set in layerInit.
-
-The attributes of the `XRQuadLayer` are as follows:
-* `image` - (for `XRQuadLayerInit` only), the instance of `XRLayerImageSource` or `XRLayerSubImage` or any of the inherited types;
-* `subImage` - the instance of `XRLayerSubImage` or any of the inherited types; if the `XRLayerImageSource` was provided to inside the `XRQuadLayerInit` object, then it will be converted to `XRLayerSubImage`;
-* `eyeVisibility` - the `XRLayerEyeVisibility`, defines which eye(s) this layer is rendered for;
-* `space` - the `XRSpace` or inherited type, defines the space in which the `pose` of the quad layer is expressed.
-* `pose` - the `XRRigidTransform`, defines position and orientation of the quad in the reference space of the `space`;
-* `width` and `height` - the dimensions of the quad.
-
-Only front face of the quad layer is visible; the back face is not visible and **must** not be rendered by the browser. A quad layer has no thickness; it is a 2D object positioned and oriented in 3D space.
-
-The position of the quad refers to the center of the quad within the given `XRSpace`. The orientation of the quad refers to the orientation of the normal vector form the front face.
-
-The dimensions of the quad refer to the quad's size in the xy-plane of the given `XRSpace`'s coordinate system. For example, the quad with the orientation {0,0,0,1}, position {0,0,0}, and dimensions {1,1} refers to 1 meter by 1 meter quad centered at {0,0,0} with its front face normal vector congruent to Z+ axis.
-
-> **TODO** Hittestable / interactive layers with using `XRLayerDOMImage`?
-
-> **TODO** Define proper methods for `XRQuadLayer`, if any
-
-> **TODO** Describe how positioning works for each XRSpace
-
-
-### Cylinder Layer
-The cylinder layer is similar to quad layer: it is an object in the world with image mapped onto the inside of a cylinder section. It can be imagined the same way a curved TV set display looks to a viewer. Only the internal surface of the layer **must** be rendered; the exterior of the cylinder is not visible and **must not** be rendered by the browser.
-```webidl
-dictionary XRCylinderLayerInit {
-  (XRLayerSubImage or XRLayerImageSource) image;
-  XRLayerEyeVisibility eyeVisibility = "both";
-  XRSpace              space;
-  XRRigidTransform?    pose;
-  float                radius;
-  float                centralAngle;
-  float                aspectRatio;
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRCylinderLayerInit layerInit)
-] interface XRCylinderLayer : XRLayer {
-
-  readonly attribute XRLayerSubImage      subImage;
-
-  readonly attribute XRLayerEyeVisibility eyeVisibility;
-  readonly attribute XRSpace              space;
-  readonly attribute XRRigidTransform?    pose;
-  readonly attribute float                radius;
-  readonly attribute float                centralAngle;
-  readonly attribute float                aspectRatio;
-
-  XRViewport? getViewport(XRView view);
-};
-```
-See `XRQuadLayer` for common attributes' description.
-
-The cylinder-specific attributes are as follows:
-* `pose` - the `XRRigidTransform`, defines position and orientation of the center point of the view of the cylinder in the reference space of the `space`;
-* `radius` - the radius of the cylinder.
-* `centralAngle` - is the angle of the visible section of the cylinder, in radians, from 0 (inclusive) to 2 x PI (exclusive). It grows symmetrically around the 0 radian angle.
-* `aspectRatio` - is the aspect ratio of the visible cylinder section, width / height. The height of the cylinder height is calculated as follows: `height = radius * centralAngle) / aspectRatio`.
-
-![](images/cylinder_layer_params.png)
-> **TODO** Update the drawing
-
-> **TODO** Define proper methods for `XRCylinderLayer`, if any
-
-> **TODO** Hittestable / interactive layers with using `XRLayerDOMImage`?
-
-
-### Equirect Layer
-```webidl
-dictionary XREquirectLayerInit {
-  (XRLayerSubImage or XRLayerImageSource) image;
-  XRLayerEyeVisibility eyeVisibility = "both";
-  XRSpace              space;
-  XRRigidTransform?    pose;
-
-  DOMPoint             scale;  // x,y
-  DOMPoint             biasUV; // x,y
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XREquirectLayerInit layerInit)
-] interface XREquirectLayer : XRLayer {
-
-  readonly attribute XRLayerSubImage   subImage;
-
-  readonly attribute XRLayerEyeVisibility eyeVisibility;
-  readonly attribute XRSpace           space;
-  readonly attribute XRRigidTransform? pose;
-  readonly attribute DOMPointReadOnly  scale;  //2f
-  readonly attribute DOMPointReadOnly  biasUV; //2f
-
-  XRViewport? getViewport(XRView view);
-};
-```
-> **TODO** Document this layer
-
-> **TODO** Define proper methods for `XREquirectLayer`, if any
-
-### Cubemap Layer
-```webidl
-dictionary XRCubeLayerInit {
-  XRLayerImageSource   image;
-  XRLayerEyeVisibility eyeVisibility = "both";
-  XRSpace              space;
-  DOMPoint             orientation; 
-  DOMPoint             offset; 
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRCubeLayerInit layerInit)
-] interface XRCubeLayer : XRLayer {
-
-  readonly attribute XRLayerImageSource   image;
-
-  readonly attribute XRLayerEyeVisibility eyeVisibility;
-  readonly attribute XRSpace              space;
-
-  readonly attribute DOMPointReadOnly     orientation; 
-  readonly attribute DOMPointReadOnly     offset; 
-
-  XRViewport? getViewport(XRView view);
-};
-```
-Only `XRLayerTextureImage` with `cube` attribute set to `true` is supported as image source for the `XRCubeLayer`.
-> **TODO** Document this layer
-
-> **TODO** Define proper methods for `XRCubeLayer`, if any
 
 ## Proposed IDL
 
@@ -631,6 +463,14 @@ dictionary XRWebGLArrayLayerInit {
   static double getNativeFramebufferScaleFactor(XRSession session);
 };
 ```
+
+#### TO DO
+This is a Work-In-Progress document and the following topics are not covered in details here. The topics which will be touched in separate documents:
+* Specify each layer type (quad, cylinder, equirect, cubemap), provide details for properties / methods for each layer;
+* DOM layers details; 
+* Video layer details; 
+* Hit-testable layers.
+* Provide full IDL.
 
 ## References
 * [Khronos OpenXR API](https://www.khronos.org/openxr)
