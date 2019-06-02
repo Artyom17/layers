@@ -44,59 +44,39 @@ Another example where composition layers are going to shine is displaying text o
 ### Implementation overview
 
 A very high-level description of the implementation could be this:
-* Replace the XRRenderState [baseLayer](https://immersive-web.github.io/webxr/#dom-xrrenderstate-baselayer) with the sequence of XRLayers;
+* Replace the [XRRenderState](https://immersive-web.github.io/webxr/#xrrenderstate-interface)'s [baseLayer](https://immersive-web.github.io/webxr/#dom-xrrenderstate-baselayer) with the sequence of [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface)s;
+* Layers are drawn in the same order as they are specified in via `XRSession/updateRenderState`, with the
+0th layer drawn first. Layers are drawn with a "painter’s algorithm," with each successive layer potentially overwriting the destination layers whether or not the new layers are virtually closer to the
+viewer.
+* Introduce a way to determine which layers are supported and what is the maximum amount of the layers supported (fingerprinting?);
+* Modify [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) by adding common properties;
+* Introduce a concept of "image source" for layers;
+* Change [XRWebGLLayer](https://immersive-web.github.io/webxr/#xrwebgllayer-interface) to comply with the new concepts of XRLayer and image source;
+* Introduce different subtypes to [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) which will have all the necessary attributes for each layer.
+
+Some more details follow.
+
+#### Changes in XRRenderState
+
+The proposed change to replace the [baseLayer](https://immersive-web.github.io/webxr/#dom-xrrenderstate-baselayer) in [XRRenderStateInit](https://immersive-web.github.io/webxr/#xrrenderstate-interface) and [XRRenderState](https://immersive-web.github.io/webxr/#xrrenderstate-interface) by the sequence of [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface)s.
+
 ```webidl
 dictionary XRRenderStateInit {
-  double depthNear;
-  double depthFar;
-  double inlineVerticalFieldOfView;
-  XRPresentationContext? outputContext;
-
+....
   sequence<XRLayer>? layers;
 };
 
 [SecureContext, Exposed=Window] interface XRRenderState {
-  readonly attribute double depthNear;
-  readonly attribute double depthFar;
-  readonly attribute double? inlineVerticalFieldOfView;
-  readonly attribute XRPresentationContext? outputContext;
-
+....
   readonly attribute FrozenArray<XRLayer>? layers;
 };
 ```
-Example of use:
-```javascript
-var quadImage = null;
-....
-function onXRSessionStarted(xrSession) {
-  let glCanvas = document.createElement("canvas");
-  let gl = glCanvas.getContext("webgl", { xrCompatible: true });
 
-  quadImage = new XRLayerTextureImage(800, 600);
-  let quadPose = new XRRigidTransform({0, 0, -5}, {0, 0, 0, 1});
-  let quadSpace = xrSession.requestReferenceSpace({"stationary", "floorLevel"});
+#### Drawing layers 
+As was mentioned before, the drawing algorithm is as simple as a "painter's algorithm" where layers render in order of their appearance in the sequence, with the 0th layer drawn first (usually, the 0th layer is the eye-buffer one). Each successive layer potentially overwriting the destination layers whether or not the new layers are virtually closer to the viewer. There is no depth testing between the layers. 
+Layer's visibility is controlled by presence (or absence) the layer in the sequence. To hide or show a layer - call [updateRenderState](https://immersive-web.github.io/webxr/#dom-xrsession-updaterenderstate) and provide a new sequence of layers.
 
-  loadWebGLResources();
-
-  xrSession.updateRenderState({ [ 
-    new XRWebGLLayer(xrSession, gl), 
-    new XRQuadLayer(xrSession, gl, {quadImage, "both", quadSpace, quadPose, 1.0, 1.0} ) ] });
-}
-```
-
-* Introduce different subtypes to [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) which will have all the necessary attributes for each layer;
-* Introduce a way to determine which layers are supported and what is the maximum amount of the layers supported. 
-> **TODO** expose capabitilities of layers, in XRSession?
-
-* Layers are drawn in the same order as they are specified in via `XRSession/updateRenderState`, with the
-0th layer drawn first. Layers are drawn with a "painter’s algorithm," with each successive layer
-potentially overwriting the destination layers whether or not the new layers are virtually closer to the
-viewer.
-
-### Proposed types of layers
-Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect layers. For more details, go [here](#layers).
-
-### Changes to XRLayer / XRLayerInit
+#### Changes to XRLayer / XRLayerInit
 ```webidl
 dictionary XRLayerInit {
   boolean chromaticAberrationCorrection = false;
@@ -120,19 +100,19 @@ There are certain properties / attributes of layers which are common across all 
 The blending opration between the source and destination is an addition. The formula for the blending of each color component is as follows: `destination_color = (source_color + (destination_color * (1 - source_alpha)))`.
 > **TODO** Verify with WebGL folks
 
-> **TODO** Any use of `visible` attribute (modifiable at run-time)? Or, just use `XRSession/updateRenderState` if layer's visibility changes?
-
-
-#### Added methods to XRLayer
+##### Added methods to XRLayer
 * `void requestUpdate()` - the method that should be called to indicate the layer's content changed; by default, browser should assume that the content of the layers (image source) is not updated.
 > **TODO** Should we add a way to control layer's visibility or, just use `XRSession/updateRenderState` if layer's visibility changes?
 
-### Layer image source
+#### Layer image source
 Layers require image source that is used for the rendering. In order to achieve maximum performance and to avoid extra texture copies, the image sources might be implemented as direct compositor swapchains under-the-hood. The proposed image sources are as follows:
 * `XRLayerImageSource` and `XRLayerImageSourceInit` - the base types;
 * `XRLayerTextureImage` - the WebGLTexure is exposed, so the content can be copied or rendered into it. This image source can be created using `XRLayerTextureImageInit` object. For `XRCubeLayer` the `cube` flag should be set to `true` at the creation time of the image source.
 * `XRLayerTextureArrayImage` - the WebGLTexture, that represents texture array is exposed, so the content can be copied or rendered into layers of it. Layer 0 represents the left eye image, 1 - the right eye image. The `XRLayerTextureArrayImageInit` object is used for creation of this image source.
 * `XRLayerFramebufferImage` - the opaque WebGLFramebuffer is exposed, see 'Anti-aliasing' below. The `XRLayerFramebufferImageInit` is used for creation of this image source.
+
+Each image source could be referenced many times from different layers. The `XRLayerSubImage` can be used to specify which area of the image source should be used by the layer.
+
 > **TODO** Verify necessity of all of these image sources, or do we need more?
 
 > **TODO** Document all the image sources here
@@ -143,21 +123,19 @@ Layers require image source that is used for the rendering. In order to achieve 
 
 #### Anti-aliasing
 
-Unfortunately, even WebGL 2 has limited functionality in terms of supporting multisampling rendering into a texture. There is no way to render directly into a texture with implicit multisampling (there is no WebGL analog of the `GL_EXT_multisampled_render_to_texture` GL extension). Using multisampled renderbuffers is possible in WebGL 2.0, but it involves extra copying (blitting from the renderbuffer to a texture to explicitly resolve).
+Unfortunately, even WebGL 2 has limited functionality in terms of supporting multisampling rendering into a texture. There is no way to render directly into a texture with implicit multi-sampling (there is no WebGL analog of the `GL_EXT_multisampled_render_to_texture` GL extension). Using multi-sampled renderbuffers is possible in WebGL 2.0, but it involves extra copying (blitting from the renderbuffer to a texture to explicitly resolve). But it is still impossible to render into a texture array with anti-aliasing, even with the new `OVR_multiview2` extension.
 
-To address this performance and compatibility issue, I think to introduce an `XRLayerFramebufferImage`, that will create an opaque framebuffer with multisampling support, similarly to what is used for `XRWebGLLayer`.
+To address this performance and compatibility issue, I think to introduce an `XRLayerFramebufferImage`, that will create an opaque framebuffer with multi-sampling support, similarly to what is used for `XRWebGLLayer`.
 > **TODO** Verify with WebGL folks
 
 It also may have the multiview flag.
 
 > **TODO** What are we going to do with multiview? Multiview has the same issue, `WEBGL_multiview` has no way to render into the texture array with anti-aliasing.
 
-
-
 #### Stereo vs mono
 The Quad, Cylinder, Equirect and Cube layers may be used for rendering either as stereo (when the image is different for each eye) or as mono (when both eyes use the same image). For simplicity reasons, I propose to use similar approach to the OpenXR API, where the layer has `XRLayerEyeVisibility` attribute that can have values `both`, `left` and `right`. This attributes controls which of the viewer's eyes to display the layer to. For mono rendering the `both` should be used. This approach provides 1:1 ratio between the layers and image sources, i.e. there is only one image source per layer, regardless whether it is the "stereo" or "mono" layer.
 
-For rendering stereo content it is necessary to create two layers, one with `left` eye visibility attirbute and another one with the `right` one. Both layers may reference to the same `XRLayerImageSource`, but most likely they should use different `XRLayerSubImage` with different texture rectangle or layer index; the `XRLayerSubImage` type defines which part of the image source should be used for the rendering of the particular eye. It is also possible to use completely different `XRLayerImageSource` per eye: for example, the `XRCubeLayer` should use different image sources for left and right eye, in the case when stereo cube map rendering is wanted.
+For rendering stereo content it would be necessary to create two layers, one with `left` eye visibility attribute and another one with the `right` one. Both layers may reference to the same `XRLayerImageSource`, but most likely they should use different `XRLayerSubImage` with different texture rectangle or layer index; the `XRLayerSubImage` type defines which part of the image source should be used for the rendering of the particular eye. It is also possible to use completely different `XRLayerImageSource` per eye: for example, the `XRCubeLayer` should use different image sources for left and right eye, in the case when stereo cube map rendering is wanted.
 
 ```webidl
 [
@@ -169,6 +147,28 @@ For rendering stereo content it is necessary to create two layers, one with `lef
   readonly attribute FrozenArray<float> imageRectUV; // 2D rect in UV space
   readonly attribute long imageArrayIndex;
 };
+```
+### Proposed types of layers
+Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect layers.
+
+### Example of use:
+```javascript
+var quadImage = null;
+....
+function onXRSessionStarted(xrSession) {
+  let glCanvas = document.createElement("canvas");
+  let gl = glCanvas.getContext("webgl", { xrCompatible: true });
+
+  quadImage = new XRLayerTextureImage(800, 600);
+  let quadPose = new XRRigidTransform({0, 0, -5}, {0, 0, 0, 1});
+  let quadSpace = xrSession.requestReferenceSpace({"stationary", "floorLevel"});
+
+  loadWebGLResources();
+
+  xrSession.updateRenderState({ [ 
+    new XRWebGLLayer(xrSession, gl), 
+    new XRQuadLayer(xrSession, gl, {quadImage, "both", quadSpace, quadPose, 1.0, 1.0} ) ] });
+}
 ```
 
 ## Proposed IDL
