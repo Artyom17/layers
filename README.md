@@ -30,7 +30,7 @@ The idea of the proposal is to add pretty basic concept of the layers into WebXR
 * Introduce a concept of layers into WebXR spec and the way how layers should be provided from user's code to Browser;
 * Define ways to get layers capabilities, such as maximum number of supported layers, supported types of layers, etc;
 * Define ways to provide image source to layers; such image sources should be able to wrap internal high-efficient zero-copying render targets (such as "compositor swapchains");
-* Make sure the layers part of WebXR spec is extensible for any future additions and minimizing need for breaking changes in future;
+* Make sure the layers' part of the WebXR spec is extensible for any future additions and minimizing need for breaking changes in future.
 
 ### Examples of use cases
 
@@ -49,12 +49,14 @@ A very high-level description of the implementation could be this:
 0th layer drawn first. Layers are drawn with a "painter’s algorithm," with each successive layer potentially overwriting the destination layers whether or not the new layers are virtually closer to the
 viewer.
 * Introduce a way to determine which layers are supported and what is the maximum amount of the layers supported (fingerprinting?);
-* Modify [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) by adding common properties;
-* Introduce a concept of "image source" for layers;
-* Change [XRWebGLLayer](https://immersive-web.github.io/webxr/#xrwebgllayer-interface) to comply with the new concepts of XRLayer and image source;
+* Add common properties to [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) (such as chromatic aberration or alpha blending flags);
+* Introduce a concept of "image source" for layers and a way to create / request image sources from the UA;
+* Optionally, change [XRWebGLLayer](https://immersive-web.github.io/webxr/#xrwebgllayer-interface) to comply with the new concepts of XRLayer and image source. Or, we can leave it as is and replace it with `XRLayerProjection` once we are ready;
 * Introduce different subtypes to [XRLayer](https://immersive-web.github.io/webxr/#xrlayer-interface) which will have all the necessary attributes for each layer.
 
-Some more details follow.
+All of these changes could be split into two categories: "breaking changes" and "additive changes".
+
+### Breaking changes
 
 #### Changes in XRRenderState
 
@@ -72,9 +74,14 @@ dictionary XRRenderStateInit {
 };
 ```
 
-#### Drawing layers 
+##### Drawing layers 
 As was mentioned before, the drawing algorithm is as simple as a "painter's algorithm" where layers render in order of their appearance in the sequence, with the 0th layer drawn first (usually, the 0th layer is the eye-buffer one). Each successive layer potentially overwriting the destination layers whether or not the new layers are virtually closer to the viewer. There is no depth testing between the layers. 
 Layer's visibility is controlled by presence (or absence) the layer in the sequence. To hide or show a layer - call [updateRenderState](https://immersive-web.github.io/webxr/#dom-xrsession-updaterenderstate) and provide a new sequence of layers.
+
+#### Optional changes to XRWebGLLayer
+Having XRLayerSourceImage concept introduced, shouldn't we modify XRWebGLLayer to use it instead of explicit reference to framebuffer or texture array (for the XRWebGLArrayLayer)? By doing this, we could avoid introducing an extra XRWebGLArrayLayer type for multiview support in this case. Alternatively, we can introduce a new layer type - `XRLayerProjection`, similarly to what OpenXR has.
+
+### Additive changes
 
 #### Changes to XRLayer / XRLayerInit
 ```webidl
@@ -83,11 +90,7 @@ dictionary XRLayerInit {
   boolean blendTextureSourceAlpha = false;
 };
 
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerInit imageInit)
-] interface XRLayer {
+[ SecureContext, Exposed=Window ] interface XRLayer {
   readonly attribute boolean chromaticAberrationCorrection;
   readonly attribute boolean blendTextureSourceAlpha;
   
@@ -130,7 +133,7 @@ To address this performance and compatibility issue, I think to introduce an `XR
 
 It also may have the multiview flag.
 
-> **TODO** What are we going to do with multiview? Multiview has the same issue, `WEBGL_multiview` has no way to render into the texture array with anti-aliasing.
+> **TODO** What are we going to do with multiview? Multiview has the same issue, `OVR_multiview2` has no way to render into the texture array with anti-aliasing.
 
 #### Stereo vs mono
 The Quad, Cylinder, Equirect and Cube layers may be used for rendering either as stereo (when the image is different for each eye) or as mono (when both eyes use the same image). For simplicity reasons, I propose to use similar approach to the OpenXR API, where the layer has `XRLayerEyeVisibility` attribute that can have values `both`, `left` and `right`. This attributes controls which of the viewer's eyes to display the layer to. For mono rendering the `both` should be used. This approach provides 1:1 ratio between the layers and image sources, i.e. there is only one image source per layer, regardless whether it is the "stereo" or "mono" layer.
@@ -138,54 +141,44 @@ The Quad, Cylinder, Equirect and Cube layers may be used for rendering either as
 For rendering stereo content it would be necessary to create two layers, one with `left` eye visibility attribute and another one with the `right` one. Both layers may reference to the same `XRLayerImageSource`, but most likely they should use different `XRLayerSubImage` with different texture rectangle or layer index; the `XRLayerSubImage` type defines which part of the image source should be used for the rendering of the particular eye. It is also possible to use completely different `XRLayerImageSource` per eye: for example, the `XRCubeLayer` should use different image sources for left and right eye, in the case when stereo cube map rendering is wanted.
 
 ```webidl
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRLayerImageSource imageSource, optional sequence<float> imageRect, optional long arrayIndex)
-] interface XRLayerSubImage {
+[ SecureContext, Exposed=Window ] interface XRLayerSubImage {
   readonly attribute XRLayerImageSource imageSource;
   readonly attribute FrozenArray<float> imageRectUV; // 2D rect in UV space
   readonly attribute long imageArrayIndex;
 };
 ```
 ### Proposed types of layers
-Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect layers.
+Not all layers are going to be supported by all hardware/browsers. We would need to figure out the bare minimum of layer types to be supported. I have the following ones in mind: the transparent or opaque quadrilateral, cubemap, cylindrical and equirect layers. Additionally, we might want to replace the `XRWebGLLayer` by the `XRLayerProjection` one.
 
-### Example of use:
-```javascript
-var quadImage = null;
-....
-function onXRSessionStarted(xrSession) {
-  let glCanvas = document.createElement("canvas");
-  let gl = glCanvas.getContext("webgl", { xrCompatible: true });
-
-  quadImage = new XRLayerTextureImage(800, 600);
-  let quadPose = new XRRigidTransform({0, 0, -5}, {0, 0, 0, 1});
-  let quadSpace = xrSession.requestReferenceSpace({"stationary", "floorLevel"});
-
-  loadWebGLResources();
-
-  xrSession.updateRenderState({ [ 
-    new XRWebGLLayer(xrSession, gl), 
-    new XRQuadLayer(xrSession, gl, {quadImage, "both", quadSpace, quadPose, 1.0, 1.0} ) ] });
-}
-```
-
-## Proposed IDL
+## IDL (excerpts)
 
 ```webidl
 typedef (WebGLRenderingContext or WebGL2RenderingContext) XRWebGLRenderingContext;
+
+dictionary XRRenderStateInit {
+  double depthNear;
+  double depthFar;
+  double inlineVerticalFieldOfView;
+  XRPresentationContext? outputContext;
+
+  sequence<XRLayer>? layers;
+};
+
+[SecureContext, Exposed=Window] interface XRRenderState {
+  readonly attribute double depthNear;
+  readonly attribute double depthFar;
+  readonly attribute double? inlineVerticalFieldOfView;
+  readonly attribute XRPresentationContext? outputContext;
+
+  readonly attribute FrozenArray<XRLayer>? layers;
+};
 
 dictionary XRLayerInit {
   boolean chromaticAberrationCorrection = false;
   boolean blendTextureSourceAlpha = false;
 };
 
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerInit imageInit)
-] interface XRLayer {
+[ SecureContext, Exposed=Window] interface XRLayer {
   readonly attribute boolean chromaticAberrationCorrection;
   readonly attribute boolean blendTextureSourceAlpha;
   
@@ -198,10 +191,7 @@ enum XRLayerEyeVisibility {
   "right" 
 };
 
-[
-    SecureContext,
-    Exposed=Window
-] interface XRLayerImageSource {
+[ SecureContext, Exposed=Window ] interface XRLayerImageSource {
 };
 
 /////////////////////////
@@ -212,11 +202,7 @@ dictionary XRLayerTextureImageInit {
   boolean cube = false;
 };
 
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerTextureImageInit imageInit)
-] interface XRLayerTextureImage : XRLayerImageSource {
+[ SecureContext, Exposed=Window] interface XRLayerTextureImage : XRLayerImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute unsigned long textureWidth;
   readonly attribute unsigned long textureHeight;
@@ -234,11 +220,7 @@ dictionary XRLayerTextureArrayImageInit {
   boolean alpha = true;
 };
 
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerTextureArrayImageInit imageInit)
-] interface XRLayerTextureArrayImage : XRLayerImageSource {
+[ SecureContext, Exposed=Window ] interface XRLayerTextureArrayImage : XRLayerImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute unsigned long arrayTextureWidth;
   readonly attribute unsigned long arrayTextureHeight;
@@ -253,212 +235,45 @@ dictionary XRLayerFramebufferImageInit {
   boolean depth = true;
   boolean stencil = false;
   boolean alpha = true;
-  boolean multiview = false;
+  boolean ignoreDepthValues = false;
   unsigned long framebufferWidth;
   unsigned long framebufferHeight;
 };
 
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerFramebufferImageInit imageInit)
-] interface XRLayerFramebufferImage : XRLayerImageSource {
+[ SecureContext, Exposed=Window ] interface XRLayerFramebufferImage : XRLayerImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute boolean antialias;
   readonly attribute boolean depth;
   readonly attribute boolean stencil;
   readonly attribute boolean alpha;
-  readonly attribute boolean multiview;
+  readonly attribute boolean ignoreDepthValues;
 
   readonly attribute unsigned long framebufferWidth;
   readonly attribute unsigned long framebufferHeight;
   readonly attribute WebGLFramebuffer framebuffer;
 };
 
-/////////////////////////
-dictionary XRLayerDOMImageInit {
-  DOMString     url;
-  unsigned long width  = 0;
-  unsigned long height = 0;
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerDOMImageInit imageInit)
-] interface XRLayerDOMSource : XRLayerImageSource {
-  readonly attribute DOMString     url;
-  readonly attribute unsigned long width;
-  readonly attribute unsigned long height;
-};
-
-/////////////////////////
-dictionary XRLayerVideoSourceInit {
-  HTMLVideoElement video;
-};
-
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRLayerVideoSourceInit imageInit)
-] interface XRLayerVideoSource : XRLayerImageSource {
-  HTMLVideoElement video;
-};
-
 //////////////////////////
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRLayerImageSource imageSource, optional sequence<float> imageRect, optional long arrayIndex)
-] interface XRLayerSubImage {
+[ SecureContext, Exposed=Window ] interface XRLayerSubImage {
   readonly attribute XRLayerImageSource imageSource;
   readonly attribute FrozenArray<float> imageRectUV; // 2D rect in UV space
   readonly attribute long imageArrayIndex;
 };
 
-/////////////////////////
-dictionary XRQuadLayerInit {
-  (XRLayerSubImage or XRLayerImageSource) image;
-  XRLayerEyeVisibility eyeVisibility = "both";
-  XRSpace              space;
-  XRRigidTransform?    pose;
-  float                width;
-  float                height;
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRQuadLayerInit layerInit)
-] interface XRQuadLayer : XRLayer {
-
-  readonly attribute XRLayerSubImage      subImage;
-
-  readonly attribute XRLayerEyeVisibility eyeVisibility;
-  readonly attribute XRSpace              space;
-  readonly attribute XRRigidTransform?    pose;
-  readonly attribute float                width;
-  readonly attribute float                height;
-
-  XRViewport? getViewport(XRView view);
-};
-
-
-/////////////////////////
-dictionary XRCylinderLayerInit {
-  (XRLayerSubImage or XRLayerImageSource) image;
-  XRLayerEyeVisibility eyeVisibility = "both";
-  XRSpace              space;
-  XRRigidTransform?    pose;
-  float                radius;
-  float                centralAngle;
-  float                aspectRatio;
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRCylinderLayerInit layerInit)
-] interface XRCylinderLayer : XRLayer {
-
-  readonly attribute XRLayerSubImage      subImage;
-
-  readonly attribute XRLayerEyeVisibility eyeVisibility;
-  readonly attribute XRSpace              space;
-  readonly attribute XRRigidTransform?    pose;
-  readonly attribute float                radius;
-  readonly attribute float                centralAngle;
-  readonly attribute float                aspectRatio;
-
-  XRViewport? getViewport(XRView view);
-};
-
-/////////////////////////
-dictionary XREquirectLayerInit {
-  (XRLayerSubImage or XRLayerImageSource) image;
-  XRLayerEyeVisibility eyeVisibility = "both";
-  XRSpace              space;
-  XRRigidTransform?    pose;
-
-  DOMPoint             scale;  // x,y
-  DOMPoint             biasUV; // x,y
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XREquirectLayerInit layerInit)
-] interface XREquirectLayer : XRLayer {
-
-  readonly attribute XRLayerSubImage   subImage;
-
-  readonly attribute XRLayerEyeVisibility eyeVisibility;
-  readonly attribute XRSpace           space;
-  readonly attribute XRRigidTransform? pose;
-  readonly attribute DOMPointReadOnly  scale;  //2f
-  readonly attribute DOMPointReadOnly  biasUV; //2f
-
-  XRViewport? getViewport(XRView view);
-};
-
-/////////////////////////
-dictionary XRCubeLayerInit {
-  XRLayerImageSource   image;
-  XRLayerEyeVisibility eyeVisibility = "both";
-  XRSpace              space;
-  DOMPoint             orientation; 
-  DOMPoint             offset; 
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRCubeLayerInit layerInit)
-] interface XRCubeLayer : XRLayer {
-
-  readonly attribute XRLayerImageSource   image;
-
-  readonly attribute XRLayerEyeVisibility eyeVisibility;
-  readonly attribute XRSpace              space;
-
-  readonly attribute DOMPointReadOnly     orientation; 
-  readonly attribute DOMPointReadOnly     offset; 
-
-  XRViewport? getViewport(XRView view);
-};
-```
- 
-### An extra mile: modify XRWebGLLayer?
-> **TODO** Revise
-
-Having XRLayerSourceImage concept introduced, shouldn't we modify XRWebGLLayer to use it instead of explicit reference to framebuffer or texture array (for the XRWebGLArrayLayer)? We could avoid introducing an extra XRWebGLArrayLayer type in this case.
-```webidl
 dictionary XRWebGLLayerInit {
   boolean antialias = true;
   boolean depth = true;
   boolean stencil = false;
   boolean alpha = true;
-  boolean multiview = false;
+  boolean ignoreDepthValues = false;
   double framebufferScaleFactor = 1.0;
 };
 
-dictionary XRWebGLArrayLayerInit {
-  boolean alpha = true;
-  double arrayTextureScaleFactor; // Same as the framebufferScaleFactor
-};
-
-[
-    SecureContext,
-    Exposed=Window,
-    Constructor(XRSession session, XRWebGLRenderingContext context, optional XRWebGLLayerInit layerInit),
-    Constructor(XRSession session, WebGL2RenderingContext context,  optional XRWebGLArrayLayerInit layerInit)
-] interface XRWebGLLayer : XRLayer {
+[ SecureContext, Exposed=Window ] interface XRWebGLLayer : XRLayer {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute XRLayerSourceImage imageSource;
 
   XRViewport? getViewport(XRView view);
-  void requestViewportScaling(double viewportScaleFactor);
 
   static double getNativeFramebufferScaleFactor(XRSession session);
 };
@@ -478,6 +293,10 @@ This is a Work-In-Progress document and the following topics are not covered in 
 * [Oculus PC SDK Reference](https://developer.oculus.com/documentation/pcsdk/latest/concepts/book-dg/)
 * [Unreal Engine compositor layers](https://developer.oculus.com/documentation/unreal/latest/concepts/unreal-overlay/)
 * [Unity Engine compositor layers](https://developer.oculus.com/documentation/unity/latest/concepts/unity-ovroverlay/)
+* [Example of IDL for Quad layer](quad.md)
+* [Example of IDL for Cylinder layer](cylinder.md)
+* [Example of IDL for Equirect layer](equirect.md)
+* [Example of IDL for Cubemap layer](cubemap.md)
 
 
 
