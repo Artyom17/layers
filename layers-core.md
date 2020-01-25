@@ -5,7 +5,7 @@
 ## Goals of the document
 The purpose of this document is to provide some implementation details for User Agents to experiment with multiple layers. 
 * Introduce a concept of "image sources" and the way how user's code provides layers with rendering to be composed into HMD screen(s);
-* Explain why `XRWebGLLayer` must be replaced with new `XRLayerProjection` layer;
+* Explain why `XRWebGLLayer` must be replaced with new `XRProjectionLayer` layer;
 * Provide with some code samples to explain how new concepts should be used;
 * Provide with partial IDL for the related types. 
 * Anything else?
@@ -18,18 +18,18 @@ The purpose of this document is to provide some implementation details for User 
 ## Why layer image source
 Layers require image source that is used for the rendering. In order to achieve maximum performance and to avoid extra texture copies, the image sources might be implemented as direct compositor swapchains under-the-hood. See [here](details.md) for more details. 
 
-## Why XRWebGLLayer has to be changed?
-Once image source concept is introduced, shouldn't we modify XRWebGLLayer to use it instead of explicit reference to framebuffer or texture array (for the XRWebGLArrayLayer)? By doing this, we could avoid introducing an extra XRWebGLArrayLayer type for multiview support in this case. Alternatively, we can introduce a new layer type.
+## Why XRWebGLLayer has to go away?
+`XRWebGLLayer` doesn't fit into the new concept and it can use a framebuffer only. Therefore it will be replaced by the new `XRProjectionLayer`.
 
 
 ## Layer image source
 Layers require image source that is used for the rendering. In order to achieve maximum performance and to avoid extra texture copies, the image sources might be implemented as direct compositor swapchains under-the-hood. The proposed image sources are as follows:
-* `XRLayerImageSource` and `XRLayerImageSourceInit` - the base types;
-* `XRLayerTextureImage` - the WebGLTexure is exposed, so the content can be copied or rendered into it. This image source can be created using `XRLayerTextureImageInit` object. For `XRCubeLayer` the `cube` flag should be set to `true` at the creation time of the image source.
-* `XRLayerTextureArrayImage` - the WebGLTexture, that represents texture array is exposed, so the content can be copied or rendered into layers of it. Layer 0 represents the left eye image, 1 - the right eye image. The `XRLayerTextureArrayImageInit` object is used for creation of this image source.
-* `XRLayerFramebufferImage` - the opaque WebGLFramebuffer is exposed, see 'Anti-aliasing' below. The `XRLayerFramebufferImageInit` is used for creation of this image source.
+* `XRImageSource` and `XRImageSourceInit` - the base types;
+* `XRTextureImage` - the WebGLTexure is exposed, so the content can be copied or rendered into it. This image source can be created using `XRTextureImageInit` object. For `XRCubeLayer` the `cube` flag should be set to `true` at the creation time of the image source.
+* `XRTextureArrayImage` - the WebGLTexture, that represents texture array is exposed, so the content can be copied or rendered into layers of it. Layer 0 represents the left eye image, 1 - the right eye image. The `XRTextureArrayImageInit` object is used for creation of this image source.
+* `XRFramebufferImage` - the opaque WebGLFramebuffer is exposed, see 'Anti-aliasing' below. The `XRFramebufferImageInit` is used for creation of this image source.
 
-Each image source could be referenced many times from different layers. The `XRLayerSubImage` can be used to specify which area of the image source should be used by the layer.
+Each image source could be referenced only once from one layer. The `XRLayerSubImage` can be used to specify which area of the image source should be used by the layer (this is for stereo layers).
 
 > **TODO** Verify necessity of all of these image sources, or do we need more?
 
@@ -43,7 +43,7 @@ Each image source could be referenced many times from different layers. The `XRL
 
 Unfortunately, even WebGL 2 has limited functionality in terms of supporting multisampling rendering into a texture. There is no way to render directly into a texture with implicit multi-sampling (there is no WebGL analog of the `GL_EXT_multisampled_render_to_texture` GL extension). Using multi-sampled renderbuffers is possible in WebGL 2.0, but it involves extra copying (blitting from the renderbuffer to a texture to explicitly resolve). But it is still impossible to render into a texture array with anti-aliasing, even with the new `OVR_multiview2` extension.
 
-To address this performance and compatibility issue, I think to introduce an `XRLayerFramebufferImage`, that will create an opaque framebuffer with multi-sampling support, similarly to what is used for `XRWebGLLayer`.
+To address this performance and compatibility issue, I think to introduce an `XRFramebufferImage`, that will create an opaque framebuffer with multi-sampling support, similarly to what is used for `XRWebGLLayer`.
 > **TODO** Verify with WebGL folks
 
 It also may have the multiview flag.
@@ -53,11 +53,11 @@ It also may have the multiview flag.
 ### Stereo vs mono
 The Quad, Cylinder, Equirect and Cube layers may be used for rendering either as stereo (when the image is different for each eye) or as mono (when both eyes use the same image). For simplicity reasons, I propose to use similar approach to the OpenXR API, where the layer has `XRLayerEyeVisibility` attribute that can have values `both`, `left` and `right`. This attributes controls which of the viewer's eyes to display the layer to. For mono rendering the `both` should be used. This approach provides 1:1 ratio between the layers and image sources, i.e. there is only one image source per layer, regardless whether it is the "stereo" or "mono" layer.
 
-For rendering stereo content it would be necessary to create two layers, one with `left` eye visibility attribute and another one with the `right` one. Both layers may reference to the same `XRLayerImageSource`, but most likely they should use different `XRLayerSubImage` with different texture rectangle or layer index; the `XRLayerSubImage` type defines which part of the image source should be used for the rendering of the particular eye. It is also possible to use completely different `XRLayerImageSource` per eye: for example, the `XRCubeLayer` should use different image sources for left and right eye, in the case when stereo cube map rendering is wanted.
+For rendering stereo content it would be necessary to create two layers, one with `left` eye visibility attribute and another one with the `right` one. Both layers may reference to the same `XRImageSource`, but most likely they should use different `XRLayerSubImage` with different texture rectangle or layer index; the `XRLayerSubImage` type defines which part of the image source should be used for the rendering of the particular eye. It is also possible to use completely different `XRImageSource` per eye: for example, the `XRCubeLayer` should use different image sources for left and right eye, in the case when stereo cube map rendering is wanted.
 
 ```webidl
 [ SecureContext, Exposed=Window ] interface XRLayerSubImage {
-  readonly attribute XRLayerImageSource imageSource;
+  readonly attribute XRImageSource imageSource;
   readonly attribute FrozenArray<float> imageRectUV; // 2D rect in UV space
   readonly attribute long imageArrayIndex;
 };
@@ -100,18 +100,18 @@ enum XRLayerEyeVisibility {
   "right" 
 };
 
-[ SecureContext, Exposed=Window ] interface XRLayerImageSource {
+[ SecureContext, Exposed=Window ] interface XRImageSource {
 };
 
 /////////////////////////
-dictionary XRLayerTextureImageInit {
+dictionary XRTextureImageInit {
   unsigned long textureWidth;
   unsigned long textureHeight;
   boolean alpha = true;
   boolean cube = false;
 };
 
-[ SecureContext, Exposed=Window] interface XRLayerTextureImage : XRLayerImageSource {
+[ SecureContext, Exposed=Window] interface XRTextureImage : XRImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute unsigned long textureWidth;
   readonly attribute unsigned long textureHeight;
@@ -121,7 +121,7 @@ dictionary XRLayerTextureImageInit {
 };
 
 /////////////////////////
-dictionary XRLayerTextureArrayImageInit {
+dictionary XRTextureArrayImageInit {
   boolean antialias = true;
   unsigned long arrayTextureWidth;
   unsigned long arrayTextureHeight;
@@ -129,7 +129,7 @@ dictionary XRLayerTextureArrayImageInit {
   boolean alpha = true;
 };
 
-[ SecureContext, Exposed=Window ] interface XRLayerTextureArrayImage : XRLayerImageSource {
+[ SecureContext, Exposed=Window ] interface XRTextureArrayImage : XRImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute unsigned long arrayTextureWidth;
   readonly attribute unsigned long arrayTextureHeight;
@@ -139,7 +139,7 @@ dictionary XRLayerTextureArrayImageInit {
 };
 
 /////////////////////////
-dictionary XRLayerFramebufferImageInit {
+dictionary XRFramebufferImageInit {
   boolean antialias = true;
   boolean depth = true;
   boolean stencil = false;
@@ -149,7 +149,7 @@ dictionary XRLayerFramebufferImageInit {
   unsigned long framebufferHeight;
 };
 
-[ SecureContext, Exposed=Window ] interface XRLayerFramebufferImage : XRLayerImageSource {
+[ SecureContext, Exposed=Window ] interface XRFramebufferImage : XRImageSource {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute boolean antialias;
   readonly attribute boolean depth;
@@ -164,12 +164,12 @@ dictionary XRLayerFramebufferImageInit {
 
 //////////////////////////
 [ SecureContext, Exposed=Window ] interface XRLayerSubImage {
-  readonly attribute XRLayerImageSource imageSource;
+  readonly attribute XRImageSource imageSource;
   readonly attribute FrozenArray<float> imageRectUV; // 2D rect in UV space
   readonly attribute long imageArrayIndex;
 };
 
-dictionary XRWebGLLayerInit {
+dictionary XRProjectionLayerInit {
   boolean antialias = true;
   boolean depth = true;
   boolean stencil = false;
@@ -178,12 +178,10 @@ dictionary XRWebGLLayerInit {
   double framebufferScaleFactor = 1.0;
 };
 
-[ SecureContext, Exposed=Window ] interface XRWebGLLayer : XRLayer {
+[ SecureContext, Exposed=Window ] interface XRProjectionLayer : XRLayer {
   readonly attribute XRWebGLRenderingContext context;
   readonly attribute XRLayerSourceImage imageSource;
 
   XRViewport? getViewport(XRView view);
-
-  static double getNativeFramebufferScaleFactor(XRSession session);
 };
 ```
